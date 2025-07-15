@@ -1297,7 +1297,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const [owner, repoName] = currentRepo.split('/');
             const filePath = currentPath ? `${currentPath}/${contextMenuTarget.name}` : contextMenuTarget.name;
             const jsdelivrLink = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@HEAD/${filePath}`;
-            copyToClipboard(jsdelivrLink, 'jsDelivr CDN 链接已复制');
+            copyToClipboard(jsdelivrLink, 'CDN 链接已复制');
         }
         hideContextMenu();
     });
