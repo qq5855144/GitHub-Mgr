@@ -276,18 +276,21 @@
         
         /* 上下文菜单 */
         .context-menu {
-            position: absolute;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-            min-width: 200px;
-            overflow: hidden;
-            transform: scale(0.95);
-            opacity: 0;
-            transition: transform 0.2s ease, opacity 0.2s ease;
-            pointer-events: none;
-        }
+    position: fixed; /* 改为固定定位 */
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    overflow: hidden;
+    transform: scale(0.95);
+    opacity: 0;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    pointer-events: none;
+    max-height: 80vh; /* 限制最大高度 */
+    overflow-y: auto; /* 添加滚动条 */
+}
+
         
         .context-menu.visible {
             transform: scale(1);
@@ -1550,15 +1553,76 @@ function hideUploadDialog() {
 
 // 显示上下文菜单
 function showContextMenu(e, fileInfo) {
-    e.preventDefault();
+    // 设置上下文菜单目标
     contextMenuTarget = fileInfo;
+
+    // 根据文件类型显示/隐藏菜单项
+    contextOpen.style.display = fileInfo.type === 'dir' || fileInfo.type === 'repo' ? 'flex' : 'none';
+    contextDownload.style.display = fileInfo.type === 'file' ? 'flex' : 'none';
+    contextRename.style.display = fileInfo.type === 'file' || fileInfo.type === 'dir' ? 'flex' : 'none';
+    contextCopyLink.style.display = fileInfo.type === 'file' ? 'flex' : 'none';
+    contextCopyProxyLink.style.display = fileInfo.type === 'file' ? 'flex' : 'none';
     
-    // 设置菜单位置
-    const x = Math.min(e.clientX, window.innerWidth - contextMenu.offsetWidth - 10);
-    const y = Math.min(e.clientY, window.innerHeight - contextMenu.offsetHeight - 10);
+    // 静态网站选项：仅对仓库或特定文件夹显示
+    contextEnablePages.style.display = (fileInfo.type === 'repo' || 
+                                      (fileInfo.type === 'dir' && fileInfo.name.toLowerCase() === 'docs')) ? 'flex' : 'none';
     
-    contextMenu.style.left = `${x}px`;
-    contextMenu.style.top = `${y}px`;
+    // 构建APP选项：仅在仓库上显示
+    contextBuildApp.style.display = fileInfo.type === 'repo' ? 'flex' : 'none';
+    
+    // 智能定位代码
+    const menuWidth = contextMenu.offsetWidth;
+    const menuHeight = contextMenu.offsetHeight;
+    
+    // 获取视口尺寸
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // 计算触发点位置
+    const triggerX = e.clientX;
+    const triggerY = e.clientY;
+    
+    // 计算各方向的可用空间
+    const spaceRight = viewportWidth - triggerX;
+    const spaceLeft = triggerX;
+    const spaceBelow = viewportHeight - triggerY;
+    const spaceAbove = triggerY;
+    
+    // 默认位置（右下）
+    let posX = triggerX;
+    let posY = triggerY + 5;
+    let positionType = "右下";
+    
+    // 检查可用空间并调整位置
+    if (spaceBelow < menuHeight && spaceAbove > menuHeight) {
+        // 下方空间不足，上方空间足够 - 显示在上方
+        posY = triggerY - menuHeight - 5;
+        positionType = "左上";
+    } else if (spaceBelow < menuHeight) {
+        // 下方空间不足，上方也不足 - 贴底显示
+        posY = viewportHeight - menuHeight - 10;
+        positionType = "底部";
+    }
+    
+    if (spaceRight < menuWidth && spaceLeft > menuWidth) {
+        // 右侧空间不足，左侧空间足够 - 显示在左侧
+        posX = triggerX - menuWidth - 5;
+        positionType = positionType === "左上" ? "左下" : "左侧";
+    } else if (spaceRight < menuWidth) {
+        // 右侧空间不足，左侧也不足 - 贴右显示
+        posX = viewportWidth - menuWidth - 10;
+        positionType = "右侧";
+    }
+    
+    // 确保不会超出视口边界
+    posX = Math.max(10, Math.min(posX, viewportWidth - menuWidth - 10));
+    posY = Math.max(10, Math.min(posY, viewportHeight - menuHeight - 10));
+    
+    // 应用位置
+    contextMenu.style.left = `${posX}px`;
+    contextMenu.style.top = `${posY}px`;
+    contextMenu.classList.add('visible');
+
     
     // 根据文件类型显示/隐藏菜单项
     contextOpen.style.display = fileInfo.type === 'dir' || fileInfo.type === 'repo' ? 'flex' : 'none';
