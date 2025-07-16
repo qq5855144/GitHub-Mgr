@@ -886,11 +886,33 @@ let currentUser = null;
 let buildTimer = null;
 let buildStatus = null;
 
+let contextMenuMask = null; // 新增遮罩层变量
+
 // 滚动相关变量
 let scrollTimeout;
 let lastScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
 let isScrolling = false;
 let lastScrollDirection = null;
+
+// ================ 新增遮罩层函数 ================ //
+function createContextMenuMask() {
+    if (contextMenuMask) return contextMenuMask;
+    
+    const mask = document.createElement('div');
+    mask.id = 'context-menu-mask';
+    mask.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: transparent;
+        z-index: 999;
+        display: none;
+    `;
+    document.body.appendChild(mask);
+    return mask;
+}
 
 // DOM 元素
 const forkRepoBtn = document.getElementById('fork-repo-btn');
@@ -1553,6 +1575,9 @@ function hideUploadDialog() {
 
 // 显示上下文菜单
 function showContextMenu(e, fileInfo) {
+    // 创建或获取遮罩层
+    contextMenuMask = createContextMenuMask();
+    
     // 设置上下文菜单目标
     contextMenuTarget = fileInfo;
 
@@ -1618,31 +1643,29 @@ function showContextMenu(e, fileInfo) {
     posX = Math.max(10, Math.min(posX, viewportWidth - menuWidth - 10));
     posY = Math.max(10, Math.min(posY, viewportHeight - menuHeight - 10));
     
+    // === 新增遮罩层处理 ===
+    // 显示遮罩层
+    contextMenuMask.style.display = 'block';
+    
     // 应用位置
     contextMenu.style.left = `${posX}px`;
     contextMenu.style.top = `${posY}px`;
     contextMenu.classList.add('visible');
 
-    
-    // 根据文件类型显示/隐藏菜单项
-    contextOpen.style.display = fileInfo.type === 'dir' || fileInfo.type === 'repo' ? 'flex' : 'none';
-    contextDownload.style.display = fileInfo.type === 'file' ? 'flex' : 'none';
-    contextRename.style.display = fileInfo.type === 'file' || fileInfo.type === 'dir' ? 'flex' : 'none';
-    contextCopyLink.style.display = fileInfo.type === 'file' ? 'flex' : 'none';
-    contextCopyProxyLink.style.display = fileInfo.type === 'file' ? 'flex' : 'none';
-    
-    // 静态网站选项：仅对仓库或特定文件夹显示
-    contextEnablePages.style.display = (fileInfo.type === 'repo' || 
-                                      (fileInfo.type === 'dir' && fileInfo.name.toLowerCase() === 'docs')) ? 'flex' : 'none';
-    
-    // 构建APP选项：仅在仓库上显示
-    contextBuildApp.style.display = fileInfo.type === 'repo' ? 'flex' : 'none';
-    
-    contextMenu.classList.add('visible');
+    // 添加遮罩层点击事件（只关闭菜单，不触发底层元素）
+    contextMenuMask.addEventListener('click', hideContextMenu);
 }
 
 // 隐藏上下文菜单
 function hideContextMenu() {
+    // 隐藏遮罩层
+    if (contextMenuMask) {
+        contextMenuMask.style.display = 'none';
+        // 移除事件监听避免多次绑定
+        contextMenuMask.removeEventListener('click', hideContextMenu);
+    }
+    
+    // 隐藏菜单
     contextMenu.classList.remove('visible');
     contextMenuTarget = null;
 }
