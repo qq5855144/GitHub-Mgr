@@ -807,6 +807,14 @@
             <i class="fas fa-hammer"></i>
             <span>运行工作流</span>
         </div>
+        <!-- 新增下载源码菜单项 -->
+    <div id="context-download-source" class="context-menu-item">
+        <i class="fas fa-download text-blue-500"></i>
+        <span class="text-blue-500">下载源码</span>
+    </div>
+    
+    <div class="context-menu-divider"></div>
+    
         <div class="context-menu-divider"></div>
         <div id="context-delete" class="context-menu-item">
             <i class="fas fa-trash text-red-500"></i>
@@ -989,10 +997,20 @@ const buildMessage = document.getElementById('build-message');
 const progressBar = document.getElementById('progress-bar');
 const progressText = document.getElementById('progress-text');
 const closeBuildStatus = document.getElementById('close-build-status');
+// 获取新添加的菜单项元素
+const contextDownloadSource = document.getElementById('context-download-source');
+
+// 绑定点击事件
+contextDownloadSource.addEventListener('click', () => {
+    if (contextMenuTarget) {
+        downloadRepositorySource(contextMenuTarget);
+    }
+    hideContextMenu();
+});
 
 // 配置项
-const SCROLL_DELAY = 3000; // 滚动停止后显示工具栏的延迟时间(ms)
-const SCROLL_THRESHOLD = 10; // 滚动距离阈值(px)，小于此值不处理
+const SCROLL_DELAY = 3000;
+const SCROLL_THRESHOLD = 10; 
 
 // 文件类型图标映射
 const fileTypeIcons = {
@@ -1590,6 +1608,8 @@ function showContextMenu(e, fileInfo) {
     // 静态网站选项：仅对仓库或特定文件夹显示
     contextEnablePages.style.display = (fileInfo.type === 'repo' || 
                                       (fileInfo.type === 'dir' && fileInfo.name.toLowerCase() === 'docs')) ? 'flex' : 'none';
+                                      // 设置新菜单项的显示条件（只对仓库显示）
+    contextDownloadSource.style.display = fileInfo.type === 'repo' ? 'flex' : 'none';
     
     // 构建APP选项：仅在仓库上显示
     contextBuildApp.style.display = fileInfo.type === 'repo' ? 'flex' : 'none';
@@ -2300,6 +2320,35 @@ async function downloadFile(file) {
         showToast(`下载失败: ${error.message}`);
     }
 }
+
+// 实现下载仓库源码功能
+async function downloadRepositorySource(repoInfo) {
+    try {
+        showToast(`正在下载 ${repoInfo.name} 源码...`);
+        
+        const [owner, repo] = repoInfo.path.split('/');
+        const downloadUrl = `https://github.com/${owner}/${repo}/archive/refs/heads/main.zip`;
+        
+        // 创建下载链接
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `${repo}-source.zip`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        
+        // 清理
+        setTimeout(() => {
+            document.body.removeChild(link);
+        }, 100);
+        
+        showToast(`开始下载 ${repoInfo.name} 源码`);
+    } catch (error) {
+        console.error('下载仓库源码失败:', error);
+        showToast('下载失败: ' + error.message);
+    }
+}
+
 
 // 使用GitHub API获取文件内容
 async function getFileContentViaAPI(file) {
