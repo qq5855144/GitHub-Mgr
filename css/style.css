@@ -1,0 +1,557 @@
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.15);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    --glass-blur: blur(12px);
+    --primary-color: #4f46e5;
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+}
+
+.top-nav{
+    position: relative;
+    z-index: 1000;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding-bottom: 100px;
+    margin: 0;
+    background-attachment: fixed;
+}
+
+/* 毛玻璃风格效果 */
+.glass {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: 16px;
+}
+
+.glass-panel {
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    border-radius: 16px;
+}
+
+/* 按钮样式 */
+.glass-btn {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 16px 0 rgba(31, 38, 135, 0.1);
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.glass-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px 0 rgba(31, 38, 135, 0.2);
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.glass-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px 0 rgba(31, 38, 135, 0.1);
+}
+
+.glass-btn-primary {
+    background: rgba(79, 70, 229, 0.8);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-btn-primary:hover {
+    background: rgba(79, 70, 229, 0.9);
+}
+
+/* 输入框样式 */
+.glass-input {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: var(--text-primary);
+    transition: all 0.3s ease;
+    width: 100%;
+}
+
+.glass-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.3);
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.glass-input::placeholder {
+    color: rgba(71, 85, 105, 0.6);
+}
+
+/* 文件列表项 */
+.file-item {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    user-select: none; 
+    -webkit-user-select: none;
+    -webkit-touch-callout: none; 
+}
+
+.file-item:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px 0 rgba(31, 38, 135, 0.1);
+}
+
+.file-item.selected {
+    background: rgba(79, 70, 229, 0.2);
+    border-color: rgba(79, 70, 229, 0.3);
+}
+
+/* 文件类型图标 */
+.file-icon {
+    margin-right: 12px;
+    filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.1));
+}
+
+.folder-icon {
+    color: #f59e0b;
+}
+
+.archive-icon {
+    color: #6366f1;
+}
+
+.image-icon {
+    color: #ec4899;
+}
+
+.code-icon {
+    color: #3b82f6;
+}
+
+.text-icon {
+    color: #64748b;
+}
+
+/* 工具栏 */
+.toolbar {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    border-radius: 24px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.toolbar.hidden {
+    transform: translateY(100px);
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* 对话框 */
+.dialog-overlay {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 999;
+}
+
+.dialog-content {
+    background: rgba(255, 255, 255, 0.98); 
+    border-radius: 10px; 
+    padding: 14px 16px; 
+    width: 85%;
+    max-width: 340px; 
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 标题 */
+.dialog-content h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.6rem;
+}
+
+/* 输入框 */
+.dialog-input {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 5px;
+    padding: 8px 12px; 
+    font-size: 0.85rem;
+    height: 36px; 
+    margin-bottom: 0.6rem;
+}
+
+/* 按钮容器 */
+.dialog-buttons {
+    margin-top: 0.8rem;
+    gap: 6px; 
+}
+
+/* 按钮 */
+.dialog-btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    border-radius: 5px;
+}
+
+/* 移动端适配 */
+@media (max-width: 480px) {
+    .dialog-content {
+        padding: 12px 14px;
+        max-width: 300px;
+    }
+    
+    .dialog-input {
+        padding: 7px 10px;
+        height: 34px;
+    }
+    
+    .dialog-btn {
+        padding: 5px 10px;
+    }
+}
+
+/* 加载动画 */
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* 面包屑导航 */
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.breadcrumb-item {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.breadcrumb-item:hover {
+    color: var(--primary-color);
+}
+
+.breadcrumb-separator {
+    margin: 0 8px;
+    color: var(--text-secondary);
+}
+
+/* 上下文菜单 */
+.context-menu {
+    position: fixed; 
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    overflow: hidden;
+    transform: scale(0.95);
+    opacity: 0;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    pointer-events: none;
+    max-height: 80vh; 
+    overflow-y: auto; 
+}
+
+.context-menu.visible {
+    transform: scale(1);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.context-menu-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: background 0.2s;
+}
+
+.context-menu-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.context-menu-item i {
+    margin-right: 10px;
+    width: 20px;
+    text-align: center;
+}
+
+.context-menu-divider {
+    height: 1px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 4px 0;
+}
+
+/* 批量操作工具栏 */
+.batch-toolbar {
+    position: fixed;
+    bottom: 80px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(79, 70, 229, 0.9);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+    border-radius: 24px;
+    padding: 8px 16px;
+    color: white;
+    font-weight: 500;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    z-index: 1000;
+    margin: 0 auto;
+    width: fit-content;
+    max-width: 90%;
+}
+
+.batch-toolbar.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.batch-toolbar-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 12px;
+    padding: 8px 12px;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.batch-toolbar-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.batch-toolbar-btn i {
+    margin-right: 6px;
+}
+
+.batch-count {
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+}
+
+/* 用户菜单 */
+.user-menu {
+    position: relative;
+    display: inline-block;
+}
+
+.user-menu-btn {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.user-menu-content {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 8px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+    border-radius: 12px;
+    min-width: 180px;
+    z-index: 1100;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.2s ease;
+    pointer-events: none;
+   
+}
+
+.user-menu-content.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.user-menu-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: background 0.2s;
+}
+
+.user-menu-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.user-menu-item i {
+    margin-right: 10px;
+    width: 20px;
+    text-align: center;
+}
+
+.user-menu-divider {
+    height: 1px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 4px 0;
+}
+
+/* 响应式调整 */
+@media (max-width: 640px) {
+    .glass {
+        border-radius: 12px;
+    }
+    
+    .file-item {
+        padding: 12px;
+    }
+    
+    .toolbar {
+        padding: 8px;
+        border-radius: 20px;
+    }
+    
+    .breadcrumb {
+        font-size: 14px;
+    }
+    
+    .batch-toolbar {
+        bottom: 70px;
+        padding: 6px 12px;
+    }
+    
+    .batch-toolbar-btn {
+        padding: 6px 8px;
+        font-size: 14px;
+    }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(79, 70, 229, 0.5);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(79, 70, 229, 0.7);
+}
+
+/* 构建状态提示 */
+.build-status {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 2000;
+    max-width: 300px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.build-status.hidden {
+    transform: translateY(-20px);
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* 启用Pages菜单项样式 */
+.context-build-app {
+    color: #3b82f6; 
+}
+.workflow-icon {
+    color: #8b5cf6; 
+}
+
+/* 固定顶栏 */
+.top-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    margin-bottom: 0 !important; 
+    z-index: 1000; 
+}
+
+/* 主界面顶部内边距 */
+#main-screen {
+    padding-top: 5rem; 
+}
+
+/* 路径容器样式 */
+#path-container {
+    min-width: 0; 
+    overflow-x: auto; 
+    scrollbar-width: thin; 
+}
+
+/* 隐藏滚动条 */
+#path-container::-webkit-scrollbar {
+    height: 4px; 
+}
+
+#path-container::-webkit-scrollbar-thumb {
+    background-color: rgba(79, 70, 229, 0.3); 
+    border-radius: 2px; 
+}
+
+#path-container::-webkit-scrollbar-track {
+    background: transparent; 
+}
+
+/* 防止路径换行 */
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap; 
+    white-space: nowrap; 
+}
+
+/* 包屑导航栏中的GitHub图标 */
+.breadcrumb-item i.fab.fa-github {
+    font-size: 20px;       
+    color: #4f46e5;        
+    transition: all 0.3s;  
+}
