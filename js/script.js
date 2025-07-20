@@ -1438,7 +1438,7 @@ async function downloadRepositorySource(repoInfo) {
         
         // 更新进度提示
         const updateProgress = () => {
-            progressToast.textContent = `打包中: ${count}/${allFiles.length} 个文件`;
+            progressToast.textContent = `打包进度: ${count}/${allFiles.length} `;
         };
         
         updateProgress();
@@ -1480,11 +1480,11 @@ async function downloadRepositorySource(repoInfo) {
             document.body.removeChild(progressToast);
         }, 100);
         
-        showToast(`仓库 ${repoInfo.name} 打包下载完成`);
+        showToast(`仓库 ${repoInfo.name} 下载完成`);
         
     } catch (error) {
-        console.error('打包下载仓库失败:', error);
-        showToast('打包下载失败: ' + error.message);
+        console.error('下载仓库失败:', error);
+        showToast('下载失败: ' + error.message);
         
         const progressToast = document.getElementById('zip-progress');
         if (progressToast) {
