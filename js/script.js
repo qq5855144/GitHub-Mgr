@@ -1391,127 +1391,161 @@ async function downloadFile(file) {
     }
 }
 
-// 下载仓库源码（打包下载整个仓库）
+        // 源码下载功能
 async function downloadRepositorySource(repoInfo) {
     try {
         showToast(`正在准备下载 ${repoInfo.name} 仓库...`);
-        
         const [owner, repo] = repoInfo.path.split('/');
+
+        // 步骤1: 获取仓库默认分支
+        const { defaultBranch, repoData } = await getRepositoryInfo(owner, repo);
         
-        // 显示打包进度提示
-        const progressToast = document.createElement('div');
-        progressToast.id = 'zip-progress';
-        progressToast.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 glass-panel px-6 py-3 rounded-full text-sm font-medium';
-        progressToast.textContent = '正在准备打包仓库内容...';
-        document.body.appendChild(progressToast);
-        
-        // 获取仓库默认分支
-        const repoInfoResponse = await fetch(
-            `https://api.github.com/repos/${owner}/${repo}`,
-            {
-                headers: {
-                    'Authorization': `token ${githubToken}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                }
-            }
-        );
-        
-        if (!repoInfoResponse.ok) {
-            throw new Error('获取仓库信息失败');
+        // 步骤2: 尝试直接下载
+        const directDownloadSuccess = await tryDirectDownload(owner, repo, defaultBranch);
+        if (directDownloadSuccess) {
+            showToast(`仓库 ${repoInfo.name} 下载完成`);
+            return;
         }
-        
-        const repoData = await repoInfoResponse.json();
-        const defaultBranch = repoData.default_branch;
-        
-        // 递归获取仓库所有文件
-        progressToast.textContent = '正在扫描仓库文件...';
-        const allFiles = await getAllFilesRecursive(owner, repo, defaultBranch, '');
-        
-        if (allFiles.length === 0) {
-            throw new Error('仓库为空，无法下载');
-        }
-        
-        // 创建ZIP文件
-        progressToast.textContent = `正在打包 ${allFiles.length} 个文件...`;
-        const zip = new JSZip();
-        let count = 0;
-        
-        // 更新进度提示
-        const updateProgress = () => {
-            progressToast.textContent = `打包进度: ${count}/${allFiles.length} `;
-        };
-        
-        updateProgress();
-        
-        // 下载并添加所有文件到ZIP
-        for (const file of allFiles) {
-            try {
-                const response = await fetch(file.download_url);
-                
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
-                const blob = await response.blob();
-                const filePath = file.path.replace(/^[^/]+\//, ''); // 移除仓库名前缀
-                zip.file(filePath, blob);
-                count++;
-                updateProgress();
-            } catch (error) {
-                console.error(`下载 ${file.path} 失败:`, error);
-            }
-        }
-        
-        // 生成ZIP文件
-        const dateString = new Date().toISOString().slice(0,10);
-        const zipFilename = `${repo}-${dateString}.zip`;
-        const content = await zip.generateAsync({ type: 'blob' });
-        
-        // 创建下载链接
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(content);
-        link.download = zipFilename;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        
-        // 清理
-        setTimeout(() => {
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
-            document.body.removeChild(progressToast);
-        }, 100);
-        
-        showToast(`仓库 ${repoInfo.name} 下载完成`);
+
+        // 步骤3: 直接下载失败时使用API打包
+        await downloadViaAPI(owner, repo, defaultBranch, repoInfo.name);
         
     } catch (error) {
         console.error('下载仓库失败:', error);
         showToast('下载失败: ' + error.message);
-        
-        const progressToast = document.getElementById('zip-progress');
-        if (progressToast) {
-            document.body.removeChild(progressToast);
-        }
+        removeProgressToast(); // 清理进度提示
     }
 }
 
-// 递归获取仓库所有文件
+// 获取仓库信息（含默认分支）
+async function getRepositoryInfo(owner, repo) {
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+        headers: {
+            'Authorization': `token ${githubToken}`,
+            'Accept': 'application/vnd.github.v3+json'
+        }
+    });
+    
+    if (!response.ok) throw new Error('获取仓库信息失败');
+    const repoData = await response.json();
+    return {
+        defaultBranch: repoData.default_branch,
+        repoData
+    };
+}
+
+// 尝试直接下载方法
+async function tryDirectDownload(owner, repo, branch) {
+    return new Promise((resolve) => {
+        const testLink = document.createElement('a');
+        testLink.href = `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.zip`;
+        testLink.download = `${repo}-${branch}.zip`;
+        
+        // 设置超时检测（5秒）
+        const timeoutId = setTimeout(() => {
+            document.body.removeChild(testLink);
+            resolve(false);
+        }, 5000);
+        
+        testLink.onclick = () => {
+            clearTimeout(timeoutId);
+            testLink.onclick = null;
+            setTimeout(() => {
+                document.body.removeChild(testLink);
+                resolve(true);
+            }, 100);
+        };
+        
+        document.body.appendChild(testLink);
+        testLink.click();
+    });
+}
+
+// API打包下载方法
+async function downloadViaAPI(owner, repo, branch, repoName) {
+    // 创建进度提示
+    const progressToast = createProgressToast('正在准备打包仓库内容...');
+    
+    try {
+        // 递归获取所有文件
+        progressToast.textContent = '正在扫描仓库文件...';
+        const allFiles = await getAllFilesRecursive(owner, repo, branch, '');
+        
+        if (allFiles.length === 0) throw new Error('仓库为空，无法下载');
+        
+        // 创建ZIP文件
+        progressToast.textContent = `正在打包 ${allFiles.length} 个文件...`;
+        const zip = new JSZip();
+        const folder = zip.folder(`${repo}-${branch}`); // 创建顶层目录
+        
+        let count = 0;
+        const updateProgress = () => {
+            progressToast.textContent = `打包进度: ${count}/${allFiles.length}`;
+        };
+        
+        // 分批下载避免内存溢出
+        const BATCH_SIZE = 10;
+        for (let i = 0; i < allFiles.length; i += BATCH_SIZE) {
+            const batch = allFiles.slice(i, i + BATCH_SIZE);
+            await Promise.all(batch.map(async (file) => {
+                try {
+                    const response = await fetch(file.download_url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const blob = await response.blob();
+                    // 保留完整目录结构
+                    folder.file(file.path, blob);
+                    count++;
+                    updateProgress();
+                } catch (error) {
+                    console.warn(`文件 ${file.path} 下载跳过:`, error);
+                }
+            }));
+        }
+
+        // 生成ZIP文件
+        progressToast.textContent = '正在生成压缩文件...';
+        const content = await zip.generateAsync({
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 }
+        }, updateProgress);
+
+        // 触发下载
+        const date = new Date().toISOString().slice(0, 10);
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(content);
+        link.download = `${repo}-${branch}-${date}.zip`;
+        link.click();
+        
+        // 清理资源
+        setTimeout(() => {
+            URL.revokeObjectURL(link.href);
+            document.body.removeChild(link);
+        }, 100);
+        
+        showToast(`仓库 ${repoName} 打包下载完成`);
+    } finally {
+        removeProgressToast();
+    }
+}
+
+// 递归获取仓库文件（保持原始结构）
 async function getAllFilesRecursive(owner, repo, branch, path) {
     try {
-        const response = await fetch(
-            `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
-            {
-                headers: {
-                    'Authorization': `token ${githubToken}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                }
+        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json'
             }
-        );
+        });
         
         if (!response.ok) return [];
+        const items = await response.json();
         
-        const contents = await response.json();
         const files = [];
-        
-        for (const item of contents) {
+        for (const item of items) {
             if (item.type === 'file') {
                 files.push({
                     path: item.path,
@@ -1522,7 +1556,6 @@ async function getAllFilesRecursive(owner, repo, branch, path) {
                 files.push(...subFiles);
             }
         }
-        
         return files;
     } catch (error) {
         console.error('获取文件列表错误:', error);
@@ -1530,6 +1563,23 @@ async function getAllFilesRecursive(owner, repo, branch, path) {
     }
 }
 
+// 创建进度提示元素
+function createProgressToast(text) {
+    removeProgressToast(); // 先清理现有提示
+    
+    const toast = document.createElement('div');
+    toast.id = 'zip-progress';
+    toast.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 glass-panel px-6 py-3 rounded-full text-sm font-medium';
+    toast.textContent = text;
+    document.body.appendChild(toast);
+    return toast;
+}
+
+// 移除进度提示
+function removeProgressToast() {
+    const existing = document.getElementById('zip-progress');
+    if (existing) document.body.removeChild(existing);
+}
 
 // 复制到剪贴板
 function copyToClipboard(text, successMessage) {
