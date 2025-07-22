@@ -1,4 +1,4 @@
-// 全局状态
+ // 全局状态
 let currentRepo = '';
 let currentPath = '';
 let currentFiles = [];
@@ -9,6 +9,8 @@ let contextMenuTarget = null;
 let currentUser = null;
 let buildTimer = null;
 let buildStatus = null;
+// 使用Map存储每个仓库的Pages状态
+let pagesEnabledMap = new Map();
 
 // 滚动相关变量
 let scrollTimeout;
@@ -439,12 +441,27 @@ document.addEventListener('DOMContentLoaded', () => {
         hideContextMenu();
     });
     
-    // 启用网站菜单项点击
-    contextEnablePages.addEventListener('click', () => {
-        if (contextMenuTarget) {
-            showStaticSiteDialog(contextMenuTarget);
+    // 启用网站菜单项点击 - 重构后的逻辑
+    contextEnablePages.addEventListener('click', async () => {
+        if (!contextMenuTarget) return;
+        
+        const targetRepo = getTargetRepo(contextMenuTarget);
+        const isEnabled = pagesEnabledMap.get(targetRepo) || false;
+        
+        try {
+            if (isEnabled) {
+                await disableGitHubPages(targetRepo);
+            } else {
+                // 显示对话框前先检查当前状态
+                await checkPagesStatus(targetRepo);
+                showStaticSiteDialog(contextMenuTarget);
+            }
+        } catch (error) {
+            console.error('操作失败:', error);
+            showToast(`操作失败: ${error.message}`);
+        } finally {
+            hideContextMenu();
         }
-        hideContextMenu();
     });
     
     // 运行工作流菜单项点击
@@ -677,6 +694,15 @@ function hideUploadDialog() {
     document.getElementById('upload-content').classList.remove('scale-100');
 }
 
+// 获取目标仓库名称
+function getTargetRepo(fileInfo) {
+    if (fileInfo.type === 'repo') {
+        return fileInfo.path;
+    }
+    // 对于目录，使用当前仓库
+    return currentRepo;
+}
+
 // 显示上下文菜单
 function showContextMenu(e, fileInfo) {
     // 创建或获取遮罩层
@@ -702,9 +728,34 @@ function showContextMenu(e, fileInfo) {
     contextRename.style.display = fileInfo.type === 'file' || fileInfo.type === 'dir' ? 'flex' : 'none';
     contextCopyLink.style.display = fileInfo.type === 'file' ? 'flex' : 'none';
     contextCopyProxyLink.style.display = fileInfo.type === 'file' ? 'flex' : 'none';
+    contextDelete.style.display = 'flex';
     contextDownloadSource.style.display = fileInfo.type === 'repo' ? 'flex' : 'none';
-    contextEnablePages.style.display = (fileInfo.type === 'repo' || 
-                                      (fileInfo.type === 'dir' && fileInfo.name.toLowerCase() === 'docs')) ? 'flex' : 'none';
+    
+    // 重构：智能显示Pages相关菜单项
+    const isRepo = fileInfo.type === 'repo';
+    const isRootDir = fileInfo.type === 'dir' && currentPath === ''; // 当前在根目录
+    const isDocsDir = fileInfo.type === 'dir' && fileInfo.name.toLowerCase() === 'docs'; // 当前在docs目录
+    
+    // 仅对仓库/根目录/docs目录显示按钮
+    const showPagesOption = isRepo || isRootDir || isDocsDir;
+    contextEnablePages.style.display = showPagesOption ? 'flex' : 'none';
+    
+    if (showPagesOption) {
+        const targetRepo = getTargetRepo(fileInfo);
+        
+        // +++ 关键修改: 每次显示菜单时强制刷新状态 +++
+        checkPagesStatus(targetRepo).then(isEnabled => {
+            // 确保菜单仍显示时才更新
+            if (contextMenu.classList.contains('visible')) {
+                updateContextMenuButton(isEnabled);
+            }
+        });
+        
+        // 先使用缓存状态显示
+        const cachedEnabled = pagesEnabledMap.get(targetRepo) || false;
+        updateContextMenuButton(cachedEnabled);
+    }
+    
     contextBuildApp.style.display = fileInfo.type === 'repo' ? 'flex' : 'none';
     
     // 上下文菜单定位
@@ -748,6 +799,15 @@ function showContextMenu(e, fileInfo) {
     contextMenu.style.left = `${posX}px`;
     contextMenu.style.top = `${posY}px`;
     contextMenu.classList.add('visible');
+}
+
+// 更新上下文菜单按钮
+function updateContextMenuButton(isEnabled) {
+    if (isEnabled) {
+        contextEnablePages.innerHTML = '<i class="fas fa-ban mr-2 text-red-500"></i><span class="text-red-500">禁用静态网站</span>';
+    } else {
+        contextEnablePages.innerHTML = '<i class="fas fa-globe mr-2 text-green-500"></i><span class="text-green-500">启用静态网站</span>';
+    }
 }
 
 // 隐藏上下文菜单
@@ -1024,7 +1084,7 @@ async function loadRepositoryContents(repo, path = '') {
     uploadBtn.classList.remove('hidden');
     newFolderBtn.classList.remove('hidden');
     selectBtn.classList.remove('hidden');
-    staticSiteBtn.classList.add('hidden');
+    staticSiteBtn.classList.add('hidden'); // 先隐藏，后面再判断
     newRepoBtn.classList.add('hidden');
     forkRepoBtn.classList.add('hidden');
         
@@ -1095,16 +1155,24 @@ async function loadRepositoryContents(repo, path = '') {
         
         renderFileList(sortedContents);
         
-        // 检查是否有index.html文件，决定是否显示静态网站按钮
-        const hasIndexHtml = contents.some(file => 
-            file.type === 'file' && file.name.toLowerCase() === 'index.html'
+        // 智能显示静态网站按钮：检查是否有index.html或index.md
+        const hasWebContent = contents.some(file => 
+            file.type === 'file' && 
+            (file.name.toLowerCase() === 'index.html' || 
+             file.name.toLowerCase() === 'index.md')
         );
         
-        if (hasIndexHtml) {
+        // 同时检查当前目录是否是根目录
+        const isRoot = path === '';
+        
+        if (hasWebContent && isRoot) {
             staticSiteBtn.classList.remove('hidden');
         } else {
             staticSiteBtn.classList.add('hidden');
         }
+        
+        // 检查该仓库的Pages状态
+        await checkPagesStatus(repo);
     } catch (error) {
         console.error('加载仓库内容错误:', error);
         showToast('加载失败: ' + error.message);
@@ -2105,7 +2173,7 @@ function encodeGitHubPath(path) {
             } catch (error) {
                 return null;
             }
-        }       
+        }
 
 // 显示加载状态
 function showLoading() {
@@ -2148,63 +2216,109 @@ refreshBtn.addEventListener('click', () => {
     }
 });
 
+// 强制刷新状态
+async function checkPagesStatus(repo, forceRefresh = true) {
+    try {
+        // 如果是强制刷新或者没有缓存状态才请求API
+        if (forceRefresh || !pagesEnabledMap.has(repo)) {
+            const [owner, repoName] = repo.split('/');
+            const response = await fetch(`https://api.github.com/repos/${owner}/${repoName}/pages`, {
+                headers: {
+                    'Authorization': `token ${githubToken}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                const isEnabled = (data.status === 'built' || data.status === 'building');
+                pagesEnabledMap.set(repo, isEnabled);
+                return isEnabled;
+            }
+            
+            pagesEnabledMap.set(repo, false);
+            return false;
+        }
+        
+        // 直接返回缓存状态
+        return pagesEnabledMap.get(repo) || false;
+        
+    } catch (error) {
+        console.error('检查Pages状态错误:', error);
+        return pagesEnabledMap.get(repo) || false;
+    }
+}
+
 // GitHub Pages功能
 function showStaticSiteDialog(repoInfo = null) {
-    const targetRepo = repoInfo ? repoInfo.path : currentRepo;
+    const targetRepo = repoInfo ? getTargetRepo(repoInfo) : currentRepo;
     
-    // 检查是否已启用Pages
-    checkPagesStatus(targetRepo);
+    // 存储目标仓库到对话框
+    staticSiteDialog.dataset.targetRepo = targetRepo;
+    
+    // 智能预填充设置
+    pagesBranch.value = 'main'; // 默认分支
+    pagesFolder.value = '/';    // 默认根目录
+    
+    // 检查是否存在docs目录，如果存在则优先推荐
+    const hasDocs = currentFiles.some(file => 
+        file.type === 'dir' && file.name.toLowerCase() === 'docs'
+    );
+    
+    if (hasDocs) {
+        pagesFolder.value = '/docs';
+    }
+    
+    // 更新状态显示
+    updatePagesStatusDisplay(targetRepo);
     
     staticSiteDialog.classList.add('opacity-100', 'pointer-events-auto');
     document.getElementById('static-site-content').classList.add('scale-100');
     document.getElementById('static-site-content').classList.remove('scale-90');
 }
 
-function hideStaticSiteDialog() {
-    staticSiteDialog.classList.remove('opacity-100', 'pointer-events-auto');
-    document.getElementById('static-site-content').classList.add('scale-90');
-    document.getElementById('static-site-content').classList.remove('scale-100');
-}
-
-async function checkPagesStatus(repo) {
-    try {
-        const [owner, repoName] = repo.split('/');
-        const response = await fetch(`https://api.github.com/repos/${owner}/${repoName}/pages`, {
-            headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
-        });
+// 更新Pages状态显示
+async function updatePagesStatusDisplay(repo) {
+    const isEnabled = await checkPagesStatus(repo);
+    
+    if (isEnabled) {
+        pagesStatus.classList.remove('hidden');
+        staticSiteEnable.classList.add('hidden');
         
-        if (response.ok) {
-            const data = await response.json();
-            if (data.status === 'built' || data.status === 'building') {
-                pagesStatus.classList.remove('hidden');
-                staticSiteEnable.classList.add('hidden');
+        try {
+            const [owner, repoName] = repo.split('/');
+            const response = await fetch(`https://api.github.com/repos/${owner}/${repoName}/pages`, {
+                headers: {
+                    'Authorization': `token ${githubToken}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
                 pagesUrl.href = data.html_url;
                 pagesUrl.textContent = data.html_url;
                 
-                // 设置当前配置
+                // 更新分支和目录显示
                 pagesBranch.value = data.source.branch;
                 pagesFolder.value = data.source.path === '/docs' ? '/docs' : '/';
-            } else {
-                pagesStatus.classList.add('hidden');
-                staticSiteEnable.classList.remove('hidden');
             }
-        } else {
-            pagesStatus.classList.add('hidden');
-            staticSiteEnable.classList.remove('hidden');
+        } catch (error) {
+            console.error('获取Pages详情失败:', error);
         }
-    } catch (error) {
-        console.error('检查Pages状态错误:', error);
+    } else {
         pagesStatus.classList.add('hidden');
         staticSiteEnable.classList.remove('hidden');
     }
 }
 
+// 启用静态网站功能
 async function enableGitHubPages() {
     try {
-        const [owner, repoName] = currentRepo.split('/');
+        const targetRepo = staticSiteDialog.dataset.targetRepo;
+        if (!targetRepo) throw new Error("无法确定目标仓库");
+        
+        const [owner, repoName] = targetRepo.split('/');
         const branch = pagesBranch.value;
         const path = pagesFolder.value === '/docs' ? '/docs' : '/';
         
@@ -2224,21 +2338,55 @@ async function enableGitHubPages() {
         });
         
         if (response.ok) {
-            showToast('静态网站已启用，构建可能需要几分钟');
+            // +++ 关键修改: 操作后强制刷新状态 +++
+            pagesEnabledMap.set(targetRepo, true);
+            showToast(`静态网站已启用: ${targetRepo}`);
             hideStaticSiteDialog();
             
-            // 检查构建状态
-            setTimeout(() => {
-                checkPagesStatus(currentRepo);
-            }, 5000);
-        } else {
-            const errorData = await response.json();
-            throw new Error(errorData.message || '启用静态网站失败');
+            // 立即刷新上下文菜单状态
+            const isEnabled = await checkPagesStatus(targetRepo, true);
+            updateContextMenuButton(isEnabled);
         }
     } catch (error) {
         console.error('启用静态网站错误:', error);
-        showToast('启用静态网站失败: ' + error.message);
+        showToast('操作失败: ' + error.message);
     }
+}
+
+// 禁用静态网站功能
+async function disableGitHubPages(repo) {
+    try {
+        const [owner, repoName] = repo.split('/');
+        
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repoName}/pages`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        if (response.status === 204) {
+            // +++ 关键修改: 操作后强制刷新状态 +++
+            pagesEnabledMap.set(repo, false);
+            showToast('静态网站已禁用');
+            
+            // 立即刷新上下文菜单状态
+            const isEnabled = await checkPagesStatus(repo, true);
+            updateContextMenuButton(isEnabled);
+        }
+    } catch (error) {
+        console.error('禁用静态网站错误:', error);
+        showToast('禁用静态网站失败: ' + error.message);
+    }
+}
+
+// 隐藏静态网站对话框
+function hideStaticSiteDialog() {
+    staticSiteDialog.classList.remove('opacity-100', 'pointer-events-auto');
+    document.getElementById('static-site-content').classList.add('scale-90');
+    document.getElementById('static-site-content').classList.remove('scale-100');
+    delete staticSiteDialog.dataset.targetRepo;
 }
 
 // 运行工作流
@@ -2357,74 +2505,74 @@ async function monitorBuildProgress(owner, repo) {
                 }
             });
             
-            if (!response.ok) {
-                throw new Error('获取构建状态失败');
-            }
-            
-            const data = await response.json();
-            const latestRun = data.workflow_runs[0];
-            
-            if (!latestRun) {
-                return;
-            }
-            
-            // 更新构建状态
-            buildStatus = latestRun.status;
-            
-            switch (latestRun.status) {
-                case 'completed':
-                    clearInterval(progressInterval);
-                    clearInterval(buildTimer);
+        if (!response.ok) {
+            throw new Error('获取构建状态失败');
+        }
+        
+        const data = await response.json();
+        const latestRun = data.workflow_runs[0];
+        
+        if (!latestRun) {
+            return;
+        }
+        
+        // 更新构建状态
+        buildStatus = latestRun.status;
+        
+        switch (latestRun.status) {
+            case 'completed':
+                clearInterval(progressInterval);
+                clearInterval(buildTimer);
+                
+                if (latestRun.conclusion === 'success') {
+                    progressBar.style.width = '100%';
+                    progressText.textContent = '100%';
+                    buildIcon.className = 'fas fa-check-circle text-green-500 mr-2';
                     
-                    if (latestRun.conclusion === 'success') {
-                        progressBar.style.width = '100%';
-                        progressText.textContent = '100%';
-                        buildIcon.className = 'fas fa-check-circle text-green-500 mr-2';
-                        
-                        // 获取制品信息
-                        const artifactsResponse = await fetch(latestRun.artifacts_url, {
-                            headers: {
-                                'Authorization': `token ${githubToken}`,
-                                'Accept': 'application/vnd.github.v3+json'
-                            }
-                        });
-                        
-                        if (artifactsResponse.ok) {
-                            const artifactsData = await artifactsResponse.json();
-                            if (artifactsData.artifacts.length > 0) {
-                                const artifactLinks = artifactsData.artifacts.map(a => 
-                                    `<a href="${a.archive_download_url}" target="_blank" class="text-blue-500">${a.name}</a>`
-                                ).join('<br>');
-                                
-                                buildMessage.innerHTML = `构建成功！下载制品:<br>${artifactLinks}`;
-                            } else {
-                                buildMessage.innerHTML = '构建成功！<br>可在仓库的Actions页面查看详情';
-                            }
+                    // 获取制品信息
+                    const artifactsResponse = await fetch(latestRun.artifacts_url, {
+                        headers: {
+                            'Authorization': `token ${githubToken}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    
+                    if (artifactsResponse.ok) {
+                        const artifactsData = await artifactsResponse.json();
+                        if (artifactsData.artifacts.length > 0) {
+                            const artifactLinks = artifactsData.artifacts.map(a => 
+                                `<a href="${a.archive_download_url}" target="_blank" class="text-blue-500">${a.name}</a>`
+                            ).join('<br>');
+                            
+                            buildMessage.innerHTML = `构建成功！下载制品:<br>${artifactLinks}`;
                         } else {
                             buildMessage.innerHTML = '构建成功！<br>可在仓库的Actions页面查看详情';
                         }
                     } else {
-                        buildIcon.className = 'fas fa-times-circle text-red-500 mr-2';
-                        buildMessage.textContent = `构建失败: ${latestRun.conclusion}`;
+                        buildMessage.innerHTML = '构建成功！<br>可在仓库的Actions页面查看详情';
                     }
-                    break;
-                    
-                case 'in_progress':
-                    buildMessage.textContent = '构建正在进行中...';
-                    break;
-                    
-                case 'queued':
-                    buildMessage.textContent = '构建任务排队中...';
-                    break;
-            }
-        } catch (error) {
-            console.error('监控构建进度错误:', error);
-            clearInterval(progressInterval);
-            clearInterval(buildTimer);
-            buildIcon.className = 'fas fa-times-circle text-red-500 mr-2';
-            buildMessage.textContent = '监控失败: ' + error.message;
+                } else {
+                    buildIcon.className = 'fas fa-times-circle text-red-500 mr-2';
+                    buildMessage.textContent = `构建失败: ${latestRun.conclusion}`;
+                }
+                break;
+                
+            case 'in_progress':
+                buildMessage.textContent = '构建正在进行中...';
+                break;
+                
+            case 'queued':
+                buildMessage.textContent = '构建任务排队中...';
+                break;
         }
-    }, 10000);
+    } catch (error) {
+        console.error('监控构建进度错误:', error);
+        clearInterval(progressInterval);
+        clearInterval(buildTimer);
+        buildIcon.className = 'fas fa-times-circle text-red-500 mr-2';
+        buildMessage.textContent = '监控失败: ' + error.message;
+    }
+}, 10000);
 }
 
 // 复刻仓库函数
@@ -2469,3 +2617,27 @@ async function forkRepository(repoUrl) {
         showToast('复刻仓库失败: ' + error.message);
     }
 }
+
+// 通用对话框隐藏函数
+function hideDialog(dialogElement) {
+    dialogElement.classList.remove('opacity-100', 'pointer-events-auto');
+    dialogElement.querySelector('.dialog-content').classList.add('scale-90');
+    dialogElement.querySelector('.dialog-content').classList.remove('scale-100');
+}
+
+// 修改所有对话框的取消按钮事件
+document.querySelectorAll('.dialog-cancel-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const dialog = this.closest('.dialog-overlay');
+        hideDialog(dialog);
+    });
+});
+
+// 修改所有对话框的遮罩层点击事件
+document.querySelectorAll('.dialog-overlay').forEach(dialog => {
+    dialog.addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideDialog(this);
+        }
+    });
+});
