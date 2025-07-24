@@ -12,11 +12,57 @@ let buildStatus = null;
 // 使用Map存储每个仓库的Pages状态
 let pagesEnabledMap = new Map();
 
+// 编辑器相关变量
+let editor = null;
+let currentEditingFile = null;
+let monacoInitialized = false;
+
 // 滚动相关变量
 let scrollTimeout;
 let lastScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
 let isScrolling = false;
 let lastScrollDirection = null;
+
+// 文本文件扩展名列表
+const textFileExtensions = ['txt', 'js', 'jsx', 'ts', 'tsx', 'html', 'css', 'scss', 'less', 'json', 'xml', 'yml', 'yaml', 'md', 'ini', 'conf', 'cfg', 'env', 'gitignore', 'log', 'sh', 'bash', 'zsh', 'py', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'rs', 'swift', 'kt', 'dart', 'lua', 'rb', 'pl', 'r', 'm', 'php'];
+
+// Monaco Editor语言映射
+const languageMapping = {
+    'js': 'javascript',
+    'jsx': 'javascript',
+    'ts': 'typescript',
+    'tsx': 'typescript',
+    'html': 'html',
+    'css': 'css',
+    'scss': 'scss',
+    'less': 'less',
+    'json': 'json',
+    'xml': 'xml',
+    'yml': 'yaml',
+    'yaml': 'yaml',
+    'md': 'markdown',
+    'sh': 'shell',
+    'bash': 'shell',
+    'zsh': 'shell',
+    'py': 'python',
+    'java': 'java',
+    'c': 'c',
+    'cpp': 'cpp',
+    'h': 'c',
+    'hpp': 'cpp',
+    'cs': 'csharp',
+    'go': 'go',
+    'rs': 'rust',
+    'swift': 'swift',
+    'kt': 'kotlin',
+    'dart': 'dart',
+    'lua': 'lua',
+    'rb': 'ruby',
+    'pl': 'perl',
+    'r': 'r',
+    'm': 'matlab',
+    'php': 'php'
+};
 
 // DOM 元素
 const forkRepoBtn = document.getElementById('fork-repo-btn');
@@ -95,6 +141,11 @@ const buildMessage = document.getElementById('build-message');
 const progressBar = document.getElementById('progress-bar');
 const progressText = document.getElementById('progress-text');
 const closeBuildStatus = document.getElementById('close-build-status');
+const editorSaveBtn = document.getElementById('editor-save-btn');
+const editorCloseBtn = document.getElementById('editor-close-btn');
+const editorFilename = document.getElementById('editor-filename');
+const editorFileSize = document.getElementById('editor-file-size');
+const editorLanguage = document.getElementById('editor-language');
 
 // 文件类型图标映射
 const fileTypeIcons = {
@@ -553,7 +604,224 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始显示工具栏
     showToolbar();
+
+    // 编辑器相关事件监听
+    editorSaveBtn.addEventListener('click', saveFileChanges);
+    editorCloseBtn.addEventListener('click', closeEditor);
+
+    // 动态加载Monaco Editor
+    const monacoScript = document.createElement('script');
+    monacoScript.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js';
+    monacoScript.onload = function() {
+        // 确保require对象存在
+        window.require = window.require || {};
+        window.require.config = window.require.config || function(config) {
+            if (config.paths) {
+                this.paths = config.paths;
+            }
+        };
+        // 配置Monaco路径
+        window.require.config({
+            paths: { 
+                'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs' 
+            }
+        });
+    };
+    document.head.appendChild(monacoScript);
 });
+
+// 初始化编辑器
+function initEditor() {
+    if (monacoInitialized) return;
+    
+    // 确保require已配置
+    if (window.require && window.require.config) {
+        window.require.config({
+            paths: { 
+                'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs' 
+            }
+        });
+    }
+    
+    try {
+        // 使用全局require函数
+        window.require(['vs/editor/editor.main'], function() {
+            try {
+                editor = monaco.editor.create(document.getElementById('editor'), {
+                    value: '',
+                    language: 'text',
+                    theme: 'vs',
+                    automaticLayout: true,
+                    fontSize: 14,
+                    minimap: { enabled: true },
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on',
+                    wrappingIndent: 'indent'
+                });
+                
+                monacoInitialized = true;
+                
+                // 添加键盘快捷键 (Ctrl+S / Cmd+S)
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
+                    saveFileChanges();
+                });
+            } catch (createError) {
+                console.error('创建Monaco编辑器实例失败:', createError);
+            }
+        });
+    } catch (error) {
+        console.error('加载Monaco编辑器失败:', error);
+    }
+}
+
+// 设置编辑器内容
+function setEditorContent(content, fileExt) {
+    editor.setValue(content);
+    
+    // 设置编辑器语言
+    const language = languageMapping[fileExt] || 'text';
+    monaco.editor.setModelLanguage(editor.getModel(), language);
+    
+    // 更新UI
+    editorFilename.textContent = currentEditingFile.name;
+    editorFileSize.textContent = formatFileSize(currentEditingFile.size);
+    editorLanguage.textContent = language.toUpperCase();
+    
+    // 显示编辑器
+    document.getElementById('editor-container').style.display = 'flex';
+    
+    // 设置焦点
+    setTimeout(() => editor.focus(), 100);
+}
+
+// 打开文件编辑器
+async function openFileInEditor(fileInfo) {
+    // 检查文件大小 (<1MB)
+    if (fileInfo.size > 1024 * 1024) {
+        showToast('文件过大，请在浏览器中查看');
+        window.open(fileInfo.download_url, '_blank');
+        return;
+    }
+    
+    // 检查文件类型
+    const fileExt = fileInfo.name.split('.').pop().toLowerCase();
+    if (!textFileExtensions.includes(fileExt)) {
+        showToast('不支持编辑此文件类型');
+        window.open(fileInfo.download_url, '_blank');
+        return;
+    }
+    
+    try {
+        showToast('正在加载文件内容...');
+        currentEditingFile = fileInfo;
+        
+        // 获取文件原始内容
+        const response = await fetch(fileInfo.download_url);
+        if (!response.ok) throw new Error('获取文件内容失败');
+        
+        const content = await response.text();
+        
+        // 初始化编辑器（如果尚未初始化）
+        if (!monacoInitialized) {
+            try {
+                initEditor();
+            } catch (e) {
+                console.error('Monaco初始化失败:', e);
+                // 初始化失败，则直接打开文件
+                showToast('编辑器加载失败，将在新标签页打开文件');
+                window.open(fileInfo.download_url, '_blank');
+                return;
+            }
+        }
+        
+        // 如果editor实例不存在，则尝试创建（可能因为异步加载还未完成）
+        if (!editor) {
+            // 等待一段时间，如果还没有则打开文件
+            let waitCount = 0;
+            const waitInterval = setInterval(() => {
+                if (editor) {
+                    clearInterval(waitInterval);
+                    setEditorContent(content, fileExt);
+                } else if (waitCount >= 10) { // 10次，每次100ms，共1秒
+                    clearInterval(waitInterval);
+                    showToast('编辑器加载超时，将在新标签页打开文件');
+                    window.open(fileInfo.download_url, '_blank');
+                }
+                waitCount++;
+            }, 100);
+        } else {
+            setEditorContent(content, fileExt);
+        }
+    } catch (error) {
+        console.error('打开编辑器失败:', error);
+        showToast('加载文件失败: ' + error.message);
+    }
+}
+
+// 保存文件修改
+async function saveFileChanges() {
+    if (!editor || !currentEditingFile) return;
+    
+    try {
+        const newContent = editor.getValue();
+        
+        // 获取文件SHA
+        const shaResponse = await fetch(
+            `https://api.github.com/repos/${currentRepo}/contents/${currentPath ? currentPath + '/' : ''}${currentEditingFile.name}`,
+            {
+                headers: {
+                    'Authorization': `token ${githubToken}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            }
+        );
+        
+        if (!shaResponse.ok) {
+            throw new Error('获取文件信息失败');
+        }
+        
+        const shaData = await shaResponse.json();
+        const sha = shaData.sha;
+        
+        // 更新文件
+        const updateResponse = await fetch(
+            `https://api.github.com/repos/${currentRepo}/contents/${currentPath ? currentPath + '/' : ''}${currentEditingFile.name}`,
+            {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${githubToken}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                },
+                body: JSON.stringify({
+                    message: `更新 ${currentEditingFile.name}`,
+                    content: btoa(unescape(encodeURIComponent(newContent))),
+                    sha: sha
+                })
+            }
+        );
+        
+        if (!updateResponse.ok) {
+            const errorData = await updateResponse.json();
+            throw new Error(errorData.message || '保存文件失败');
+        }
+        
+        showToast('文件保存成功');
+        closeEditor();
+        
+        // 刷新文件列表
+        loadRepositoryContents(currentRepo, currentPath);
+        
+    } catch (error) {
+        console.error('保存文件失败:', error);
+        showToast('保存失败: ' + error.message);
+    }
+}
+
+// 关闭编辑器
+function closeEditor() {
+    document.getElementById('editor-container').style.display = 'none';
+    currentEditingFile = null;
+}
 
 // 滚动事件处理
 function handleScroll() {
@@ -1268,8 +1536,15 @@ function renderFileList(items) {
                 loadRepositoryContents(currentRepo, `${currentPath ? currentPath + '/' : ''}${item.name}`);
             } else if (item.type === 'repo') {
                 loadRepositoryContents(item.path);
-            } else if (item.type === 'file' && item.download_url) {
-                window.open(item.download_url, '_blank');
+            } else if (item.type === 'file') {
+                // 如果是文本文件，则打开编辑器；否则在新标签页打开
+                const fileExt = item.name.split('.').pop().toLowerCase();
+                if (textFileExtensions.includes(fileExt)) {
+                    e.preventDefault(); // 防止默认行为（如果有的话）
+                    openFileInEditor(item);
+                } else {
+                    window.open(item.download_url, '_blank');
+                }
             }
         });
         
@@ -1297,9 +1572,33 @@ function renderFileList(items) {
                 meta.textContent += ' • 更新: ' + formatDate(item.updatedAt);
             }
         } else if (item.type === 'file') {
-            meta.textContent = formatFileSize(item.size) + (item.download_url ? ' • 点击查看' : '');
+            meta.textContent = formatFileSize(item.size);
         } else {
             meta.textContent = '文件夹 • 点击进入';
+        }
+        
+        // 添加文件操作链接
+        if (item.type === 'file') {
+            const openLink = document.createElement('a');
+            openLink.href = '#';
+            openLink.className = 'text-blue-500 hover:underline ml-2 text-xs hidden md:inline';
+            openLink.textContent = '编辑';
+            openLink.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openFileInEditor(item);
+            });
+            
+            const downloadLink = document.createElement('a');
+            downloadLink.href = '#';
+            downloadLink.className = 'text-blue-500 hover:underline ml-2 text-xs hidden md:inline';
+            downloadLink.textContent = '下载';
+            downloadLink.addEventListener('click', (e) => {
+                e.stopPropagation();
+                downloadFile(item);
+            });
+            
+            meta.appendChild(openLink);
+            meta.appendChild(downloadLink);
         }
         
         infoContainer.appendChild(name);
@@ -2174,7 +2473,7 @@ function encodeGitHubPath(path) {
                 return null;
             }
         }
-
+        
 // 显示加载状态
 function showLoading() {
     fileListElement.classList.add('hidden');
