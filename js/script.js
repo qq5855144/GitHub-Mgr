@@ -1,4 +1,4 @@
- // 全局状态
+// 全局状态
 let currentRepo = '';
 let currentPath = '';
 let currentFiles = [];
@@ -146,6 +146,13 @@ const editorCloseBtn = document.getElementById('editor-close-btn');
 const editorFilename = document.getElementById('editor-filename');
 const editorFileSize = document.getElementById('editor-file-size');
 const editorLanguage = document.getElementById('editor-language');
+
+// 移动设备工具栏元素
+const mobileSaveBtn = document.getElementById('mobile-save-btn');
+const mobileCloseBtn = document.getElementById('mobile-close-btn');
+const mobileUndoBtn = document.getElementById('mobile-undo-btn');
+const mobileRedoBtn = document.getElementById('mobile-redo-btn');
+const mobileSearchBtn = document.getElementById('mobile-search-btn');
 
 // 文件类型图标映射
 const fileTypeIcons = {
@@ -609,6 +616,22 @@ document.addEventListener('DOMContentLoaded', () => {
     editorSaveBtn.addEventListener('click', saveFileChanges);
     editorCloseBtn.addEventListener('click', closeEditor);
 
+    // 移动设备工具栏事件
+    mobileSaveBtn?.addEventListener('click', saveFileChanges);
+    mobileCloseBtn?.addEventListener('click', closeEditor);
+    mobileUndoBtn?.addEventListener('click', () => {
+        if (editor) editor.getModel().undo();
+    });
+    mobileRedoBtn?.addEventListener('click', () => {
+        if (editor) editor.getModel().redo();
+    });
+    mobileSearchBtn?.addEventListener('click', () => {
+        if (editor) {
+            editor.focus();
+            editor.trigger('', 'actions.find');
+        }
+    });
+
     // 动态加载Monaco Editor
     const monacoScript = document.createElement('script');
     monacoScript.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js';
@@ -647,7 +670,7 @@ function initEditor() {
         // 使用全局require函数
         window.require(['vs/editor/editor.main'], function() {
             try {
-                editor = monaco.editor.create(document.getElementById('editor'), {
+                const editorOptions = {
                     value: '',
                     language: 'text',
                     theme: 'vs',
@@ -657,7 +680,16 @@ function initEditor() {
                     scrollBeyondLastLine: false,
                     wordWrap: 'on',
                     wrappingIndent: 'indent'
-                });
+                };
+
+                // 移动设备特定配置
+                if (window.innerWidth <= 768) {
+                    editorOptions.minimap = { enabled: false };
+                    editorOptions.fontSize = 10;
+                    editorOptions.lineHeight = 16;
+                }
+
+                editor = monaco.editor.create(document.getElementById('editor'), editorOptions);
                 
                 monacoInitialized = true;
                 
@@ -665,6 +697,11 @@ function initEditor() {
                 editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
                     saveFileChanges();
                 });
+
+                // 添加虚拟键盘检测
+                if (window.innerWidth <= 768) {
+                    window.addEventListener('resize', handleMobileKeyboard);
+                }
             } catch (createError) {
                 console.error('创建Monaco编辑器实例失败:', createError);
             }
@@ -672,6 +709,29 @@ function initEditor() {
     } catch (error) {
         console.error('加载Monaco编辑器失败:', error);
     }
+}
+
+// 处理移动设备键盘弹出
+function handleMobileKeyboard() {
+    if (!editor) return;
+    
+    const editorContainer = document.getElementById('editor-container');
+    const editorElement = document.getElementById('editor');
+    
+    if (window.innerHeight < window.outerHeight * 0.9) {
+        // 键盘弹出时
+        editorContainer.style.position = 'absolute';
+        editorContainer.style.top = '0';
+        editorContainer.style.height = (window.innerHeight - 100) + 'px';
+        editorElement.style.height = (window.innerHeight - 150) + 'px';
+    } else {
+        // 键盘收起时
+        editorContainer.style.position = 'fixed';
+        editorContainer.style.height = '100%';
+        editorElement.style.height = '';
+    }
+    
+    editor.layout();
 }
 
 // 设置编辑器内容
@@ -689,6 +749,7 @@ function setEditorContent(content, fileExt) {
     
     // 显示编辑器
     document.getElementById('editor-container').style.display = 'flex';
+    document.getElementById('editor-container').classList.remove("hidden")
     
     // 设置焦点
     setTimeout(() => editor.focus(), 100);
@@ -713,8 +774,7 @@ async function openFileInEditor(fileInfo) {
     
     try {
         showToast('正在加载文件内容...');
-        currentEditingFile = fileInfo;
-        
+        currentEditingFile = fileInfo;                       
         // 获取文件原始内容
         const response = await fetch(fileInfo.download_url);
         if (!response.ok) throw new Error('获取文件内容失败');
