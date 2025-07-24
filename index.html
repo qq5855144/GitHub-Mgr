@@ -141,6 +141,26 @@
         </div>
     </div>
     
+    <!-- 添加编辑器容器 -->
+    <div id="editor-container" class="fixed inset-0 z-[2000] hidden flex-col bg-white">
+        <div class="editor-header">
+            <h2 id="editor-filename"></h2>
+            <div class="editor-actions">
+                <button id="editor-save-btn" class="editor-btn editor-btn-save">保存</button>
+                <button id="editor-close-btn" class="editor-btn editor-btn-close">关闭</button>
+            </div>
+        </div>
+        <div id="editor"></div>
+        <div class="editor-status-bar">
+            <div class="editor-status-item">
+                <span id="editor-file-size"></span>
+            </div>
+            <div class="editor-status-item">
+                <span id="editor-language"></span>
+            </div>
+        </div>
+    </div>
+    
     <!-- 操作提示 -->
     <div id="toast" class="fixed bottom-20 left-1/2 transform -translate-x-1/2 glass-panel px-6 py-3 rounded-full opacity-0 transition-opacity duration-300 text-sm font-medium">
         <!-- 提示内容 -->
