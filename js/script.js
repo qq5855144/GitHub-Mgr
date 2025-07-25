@@ -1585,28 +1585,125 @@ function renderFileList(items) {
         });
         
         // 添加选择模式点击处理
-        fileItem.addEventListener('click', (e) => {
-            if (batchToolbar.classList.contains('visible')) {
-                e.stopPropagation();
-                toggleFileSelection(fileItem, item);
-                return;
-            }
-            
-            if (item.type === 'dir') {
-                loadRepositoryContents(currentRepo, `${currentPath ? currentPath + '/' : ''}${item.name}`);
-            } else if (item.type === 'repo') {
-                loadRepositoryContents(item.path);
-            } else if (item.type === 'file') {
-                // 如果是文本文件，则打开编辑器；否则在新标签页打开
-                const fileExt = item.name.split('.').pop().toLowerCase();
-                if (textFileExtensions.includes(fileExt)) {
-                    e.preventDefault(); // 防止默认行为（如果有的话）
-                    openFileInEditor(item);
-                } else {
-                    window.open(item.download_url, '_blank');
-                }
-            }
-        });
+fileItem.addEventListener('click', (e) => {
+    if (batchToolbar.classList.contains('visible')) {
+        e.stopPropagation();
+        toggleFileSelection(fileItem, item);
+        return;
+    }
+    
+    if (item.type === 'dir') {
+        loadRepositoryContents(currentRepo, `${currentPath ? currentPath + '/' : ''}${item.name}`);
+    } else if (item.type === 'repo') {
+        loadRepositoryContents(item.path);
+    } else if (item.type === 'file') {
+        const fileExt = item.name.split('.').pop().toLowerCase();
+        
+        // 文本文件 - 在编辑器中打开
+        if (textFileExtensions.includes(fileExt)) {
+            e.preventDefault();
+            openFileInEditor(item);
+        } 
+        // 图片文件 - 直接预览
+        else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(fileExt)) {
+            e.preventDefault();
+            showImagePreview(item);
+        }
+        // PDF文件 - 在新窗口打开
+        else if (fileExt === 'pdf') {
+            window.open(item.download_url, '_blank');
+        }
+        // 其他文件 - 直接下载
+        else {
+            downloadFile(item);
+        }
+    }
+});
+
+// 背景预览函数
+function showImagePreview(item) {
+    // 创建预览容器
+    const previewContainer = document.createElement('div');
+    previewContainer.className = 'image-preview-container';
+    previewContainer.innerHTML = `
+        <div class="image-preview-content">
+            <div class="image-preview-header">
+                <div class="image-preview-title">${item.name}</div>
+                <button class="image-preview-close" title="关闭">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="image-preview-body">
+                <img src="${item.download_url}" alt="${item.name}" loading="lazy">
+            </div>
+            <div class="image-preview-footer">
+                <div class="background-toggle">
+                    <button class="btn-bg-light" title="浅色背景">
+                        <i class="fas fa-sun"></i>
+                    </button>
+                    <button class="btn-bg-dark" title="深色网格背景">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <button class="btn-bg-grid" title="浅色网格背景">
+                        <i class="fas fa-border-all"></i>
+                    </button>
+                </div>
+                
+            </div>
+        </div>
+    `;
+    
+    // 添加到页面
+    document.body.appendChild(previewContainer);
+    document.body.style.overflow = 'hidden';
+    
+    // 获取图片元素
+    const img = previewContainer.querySelector('img');
+    const imgBody = previewContainer.querySelector('.image-preview-body');
+    
+    // 根据图片类型设置初始背景
+    const ext = item.name.split('.').pop().toLowerCase();
+    const isTransparent = ['png', 'gif', 'svg', 'webp'].includes(ext);
+    
+    if (isTransparent) {
+        imgBody.classList.add('checkerboard-dark-bg'); // 默认使用深色网格背景
+    }
+    
+    // 背景切换功能
+    previewContainer.querySelector('.btn-bg-light').addEventListener('click', () => {
+        imgBody.className = 'image-preview-body light-bg';
+    });
+    
+    previewContainer.querySelector('.btn-bg-dark').addEventListener('click', () => {
+        imgBody.className = 'image-preview-body checkerboard-dark-bg';
+    });
+    
+    previewContainer.querySelector('.btn-bg-grid').addEventListener('click', () => {
+        imgBody.className = 'image-preview-body checkerboard-bg';
+    });
+    
+    // 关闭预览的函数
+    const closePreview = () => {
+        document.body.removeChild(previewContainer);
+        document.body.style.overflow = '';
+    };
+    
+    // 添加关闭事件
+    previewContainer.querySelector('.image-preview-close').addEventListener('click', closePreview);
+    
+    // ESC键关闭
+    document.addEventListener('keydown', function escClose(e) {
+        if (e.key === 'Escape') {
+            closePreview();
+            document.removeEventListener('keydown', escClose);
+        }
+    });
+    
+    // 图片加载错误处理
+    img.onerror = () => {
+        imgBody.innerHTML = '<div class="text-red-500">图片加载失败</div>';
+    };
+}
         
         const icon = document.createElement('i');
         icon.className = `file-icon ${item.type === 'dir' ? 'fas fa-folder folder-icon' : 
