@@ -607,6 +607,7 @@
     top: 0;
     left: 0;
     right: 0;
+    border-radius: 0;
     margin-bottom: 0 !important; 
     z-index: 1000; 
   }
