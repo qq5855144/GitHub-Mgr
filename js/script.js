@@ -501,26 +501,33 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 启用网站菜单项点击 - 重构后的逻辑
     contextEnablePages.addEventListener('click', async () => {
-        if (!contextMenuTarget) return;
-        
-        const targetRepo = getTargetRepo(contextMenuTarget);
-        const isEnabled = pagesEnabledMap.get(targetRepo) || false;
-        
-        try {
-            if (isEnabled) {
-                await disableGitHubPages(targetRepo);
-            } else {
-                // 显示对话框前先检查当前状态
-                await checkPagesStatus(targetRepo);
-                showStaticSiteDialog(contextMenuTarget);
-            }
-        } catch (error) {
-            console.error('操作失败:', error);
-            showToast(`操作失败: ${error.message}`);
-        } finally {
-            hideContextMenu();
+    if (!contextMenuTarget) return;
+    
+    // 立即更新按钮状态
+    const menuItem = contextEnablePages;
+    const originalHTML = menuItem.innerHTML;
+    menuItem.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><span>处理中...</span>';
+    
+    const targetRepo = getTargetRepo(contextMenuTarget);
+    const isEnabled = pagesEnabledMap.get(targetRepo) || false;
+    
+    try {
+        if (isEnabled) {
+            await disableGitHubPages(targetRepo);
+        } else {
+            // 显示对话框前先检查当前状态
+            await checkPagesStatus(targetRepo);
+            showStaticSiteDialog(contextMenuTarget);
         }
-    });
+    } catch (error) {
+        console.error('操作失败:', error);
+        showToast(`操作失败: ${error.message}`);
+    } finally {
+        // 恢复按钮状态
+        menuItem.innerHTML = originalHTML;
+        hideContextMenu();
+    }
+});
     
     // 运行工作流菜单项点击
     contextBuildApp.addEventListener('click', () => {
@@ -1584,7 +1591,7 @@ function renderFileList(items) {
             showContextMenu(e, item);
         });
         
-        // 添加选择模式点击处理
+       // 添加选择模式点击处理
 fileItem.addEventListener('click', (e) => {
     if (batchToolbar.classList.contains('visible')) {
         e.stopPropagation();
@@ -2673,35 +2680,32 @@ refreshBtn.addEventListener('click', () => {
 });
 
 // 强制刷新状态
-async function checkPagesStatus(repo, forceRefresh = true) {
+async function checkPagesStatus(repo, forceRefresh = false) {
+    // 如果有缓存且不需要强制刷新，直接返回缓存值
+    if (!forceRefresh && pagesEnabledMap.has(repo)) {
+        return pagesEnabledMap.get(repo);
+    }
+    
     try {
-        // 如果是强制刷新或者没有缓存状态才请求API
-        if (forceRefresh || !pagesEnabledMap.has(repo)) {
-            const [owner, repoName] = repo.split('/');
-            const response = await fetch(`https://api.github.com/repos/${owner}/${repoName}/pages`, {
-                headers: {
-                    'Authorization': `token ${githubToken}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                }
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                const isEnabled = (data.status === 'built' || data.status === 'building');
-                pagesEnabledMap.set(repo, isEnabled);
-                return isEnabled;
+        const [owner, repoName] = repo.split('/');
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repoName}/pages`, {
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json'
             }
-            
-            pagesEnabledMap.set(repo, false);
-            return false;
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const isEnabled = (data.status === 'built' || data.status === 'building');
+            pagesEnabledMap.set(repo, isEnabled);
+            return isEnabled;
         }
         
-        // 直接返回缓存状态
-        return pagesEnabledMap.get(repo) || false;
-        
+        return false;
     } catch (error) {
         console.error('检查Pages状态错误:', error);
-        return pagesEnabledMap.get(repo) || false;
+        return false;
     }
 }
 
@@ -2770,7 +2774,14 @@ async function updatePagesStatusDisplay(repo) {
 
 // 启用静态网站功能
 async function enableGitHubPages() {
+    const enableBtn = staticSiteEnable;
+    const originalText = enableBtn.innerHTML;
+    
     try {
+        // 显示加载状态
+        enableBtn.disabled = true;
+        enableBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 处理中...';
+        
         const targetRepo = staticSiteDialog.dataset.targetRepo;
         if (!targetRepo) throw new Error("无法确定目标仓库");
         
@@ -2793,24 +2804,29 @@ async function enableGitHubPages() {
             })
         });
         
-        if (response.ok) {
-            // +++ 关键修改: 操作后强制刷新状态 +++
-            pagesEnabledMap.set(targetRepo, true);
-            showToast(`静态网站已启用: ${targetRepo}`);
-            hideStaticSiteDialog();
-            
-            // 立即刷新上下文菜单状态
-            const isEnabled = await checkPagesStatus(targetRepo, true);
-            updateContextMenuButton(isEnabled);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || '启用失败');
         }
+        
+        pagesEnabledMap.set(targetRepo, true);
+        showToast(`静态网站已启用: ${targetRepo}`);
+        hideStaticSiteDialog();
+        
     } catch (error) {
         console.error('启用静态网站错误:', error);
         showToast('操作失败: ' + error.message);
+    } finally {
+        enableBtn.disabled = false;
+        enableBtn.innerHTML = originalText;
     }
 }
 
-// 禁用静态网站功能
 async function disableGitHubPages(repo) {
+    const menuItem = contextEnablePages;
+    const originalHTML = menuItem.innerHTML;
+    menuItem.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><span>处理中...</span>';
+    
     try {
         const [owner, repoName] = repo.split('/');
         
@@ -2822,18 +2838,19 @@ async function disableGitHubPages(repo) {
             }
         });
         
-        if (response.status === 204) {
-            // +++ 关键修改: 操作后强制刷新状态 +++
-            pagesEnabledMap.set(repo, false);
-            showToast('静态网站已禁用');
-            
-            // 立即刷新上下文菜单状态
-            const isEnabled = await checkPagesStatus(repo, true);
-            updateContextMenuButton(isEnabled);
+        if (response.status !== 204) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || '禁用失败');
         }
+        
+        pagesEnabledMap.set(repo, false);
+        showToast('静态网站已禁用');
+        
     } catch (error) {
         console.error('禁用静态网站错误:', error);
-        showToast('禁用静态网站失败: ' + error.message);
+        showToast('禁用失败: ' + error.message);
+    } finally {
+        menuItem.innerHTML = originalHTML;
     }
 }
 
