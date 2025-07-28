@@ -462,9 +462,11 @@ document.addEventListener('DOMContentLoaded', () => {
         hideContextMenu();
     });
     
+    // 复制功能
     contextCopyLink.addEventListener('click', (e) => {
     e.stopPropagation();
     if (contextMenuTarget && contextMenuTarget.type === 'file') {
+        // 使用原始下载URL
         copyToClipboard(contextMenuTarget.download_url, 'Raw 链接已复制');
     }
     hideContextMenu();
@@ -474,12 +476,48 @@ contextCopyProxyLink.addEventListener('click', (e) => {
     e.stopPropagation();
     if (contextMenuTarget && contextMenuTarget.type === 'file') {
         const [owner, repoName] = currentRepo.split('/');
-        const filePath = currentPath ? `${currentPath}/${contextMenuTarget.name}` : contextMenuTarget.name;
-        const jsdelivrLink = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@HEAD/${filePath}`;
+        const filePath = currentPath ? 
+            `${currentPath}/${contextMenuTarget.name}` : 
+            contextMenuTarget.name;
+        
+        // 使用更可靠的CDN URL格式
+        const encodedPath = encodeURIComponent(filePath).replace(/%2F/g, '/');
+        const jsdelivrLink = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@HEAD/${encodedPath}`;
+        
         copyToClipboard(jsdelivrLink, 'CDN 链接已复制');
     }
     hideContextMenu();
 });
+
+// 增强复制功能，添加兼容性处理
+function copyToClipboard(text, successMessage) {
+    // 创建隐藏的textarea元素
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = 0;
+    document.body.appendChild(textArea);
+    textArea.select();
+    
+    try {
+        // 尝试使用现代API
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast(successMessage);
+            });
+        } else {
+            // 使用兼容性方法
+            document.execCommand('copy');
+            showToast(successMessage);
+        }
+    } catch (err) {
+        console.error('复制失败:', err);
+        showToast('复制失败: ' + err.message);
+    } finally {
+        // 清理
+        document.body.removeChild(textArea);
+    }
+}
     
     contextDelete.addEventListener('click', () => {
         if (contextMenuTarget) {
@@ -1595,16 +1633,16 @@ function renderFileList(items) {
             showContextMenu(e, item);
         });
         
-       // 添加选择模式点击处理
+// 修复文件点击行为
 fileItem.addEventListener('click', (e) => {
+    // 阻止默认行为（防止链接跳转）
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (batchToolbar.classList.contains('visible')) {
-        e.stopPropagation();
         toggleFileSelection(fileItem, item);
         return;
     }
-    
-    // 阻止默认行为（防止链接跳转）
-    e.preventDefault();
     
     if (item.type === 'dir') {
         loadRepositoryContents(currentRepo, `${currentPath ? currentPath + '/' : ''}${item.name}`);
