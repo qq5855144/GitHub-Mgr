@@ -462,23 +462,24 @@ document.addEventListener('DOMContentLoaded', () => {
         hideContextMenu();
     });
     
-    contextCopyLink.addEventListener('click', () => {
-        if (contextMenuTarget && contextMenuTarget.type === 'file') {
-            copyToClipboard(contextMenuTarget.download_url, 'Raw 链接已复制');
-        }
-        hideContextMenu();
-    });
-    
-    contextCopyProxyLink.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (contextMenuTarget && contextMenuTarget.type === 'file') {
-            const [owner, repoName] = currentRepo.split('/');
-            const filePath = currentPath ? `${currentPath}/${contextMenuTarget.name}` : contextMenuTarget.name;
-            const jsdelivrLink = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@HEAD/${filePath}`;
-            copyToClipboard(jsdelivrLink, 'CDN 链接已复制');
-        }
-        hideContextMenu();
-    });
+    contextCopyLink.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (contextMenuTarget && contextMenuTarget.type === 'file') {
+        copyToClipboard(contextMenuTarget.download_url, 'Raw 链接已复制');
+    }
+    hideContextMenu();
+});
+
+contextCopyProxyLink.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (contextMenuTarget && contextMenuTarget.type === 'file') {
+        const [owner, repoName] = currentRepo.split('/');
+        const filePath = currentPath ? `${currentPath}/${contextMenuTarget.name}` : contextMenuTarget.name;
+        const jsdelivrLink = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@HEAD/${filePath}`;
+        copyToClipboard(jsdelivrLink, 'CDN 链接已复制');
+    }
+    hideContextMenu();
+});
     
     contextDelete.addEventListener('click', () => {
         if (contextMenuTarget) {
@@ -1153,6 +1154,9 @@ function hideContextMenu() {
     }
     contextMenu.classList.remove('visible');
     contextMenuTarget = null;
+    
+    // 确保移除所有事件监听器
+    document.removeEventListener('click', hideContextMenu);
 }
 
 // 打开上下文菜单项
@@ -1599,6 +1603,9 @@ fileItem.addEventListener('click', (e) => {
         return;
     }
     
+    // 阻止默认行为（防止链接跳转）
+    e.preventDefault();
+    
     if (item.type === 'dir') {
         loadRepositoryContents(currentRepo, `${currentPath ? currentPath + '/' : ''}${item.name}`);
     } else if (item.type === 'repo') {
@@ -1608,12 +1615,10 @@ fileItem.addEventListener('click', (e) => {
         
         // 文本文件 - 在编辑器中打开
         if (textFileExtensions.includes(fileExt)) {
-            e.preventDefault();
             openFileInEditor(item);
         } 
         // 图片文件 - 直接预览
         else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(fileExt)) {
-            e.preventDefault();
             showImagePreview(item);
         }
         // PDF文件 - 在新窗口打开
