@@ -1,4 +1,4 @@
-// 全局状态钥匙这组
+// 全局状态问一下
 let currentRepo = '';
 let currentPath = '';
 let currentFiles = [];
