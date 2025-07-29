@@ -851,7 +851,7 @@ async function openFileInEditor(fileInfo) {
             }
             
             // 显示编辑器加载状态
-            const loadingToast = showPersistentToast('正在加载编辑器，请改变网络环境...');
+            const loadingToast = showPersistentToast('首次加载编辑器请改变网络环境或者等待...');
             
             try {
                 await editorLoadPromise;
