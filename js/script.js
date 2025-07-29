@@ -305,9 +305,6 @@ document.addEventListener('DOMContentLoaded', () => {
         verifyToken();
     }
 
-    // 预加载Monaco Editor
-    preloadMonacoEditor();
-
     // 用户菜单事件
     userMenuBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -323,6 +320,9 @@ document.addEventListener('DOMContentLoaded', () => {
     logoutBtn.addEventListener('click', () => {
         logout();
     });
+       
+    // 预加载Monaco Editor
+    preloadMonacoEditor();
     
     // 确认对话框事件监听
     confirmYes.addEventListener('click', () => {
