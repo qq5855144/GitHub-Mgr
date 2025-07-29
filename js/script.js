@@ -17,6 +17,8 @@ let repoBranches = new Map(); // 存储仓库的默认分支
 let editor = null;
 let currentEditingFile = null;
 let monacoInitialized = false;
+let editorLoading = false;
+let editorLoadPromise = null;
 
 // 滚动相关变量
 let scrollTimeout;
@@ -303,6 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
         verifyToken();
     }
 
+    // 预加载Monaco Editor
+    preloadMonacoEditor();
+
     // 用户菜单事件
     userMenuBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -465,64 +470,64 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 复制功能
     contextCopyLink.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (contextMenuTarget && contextMenuTarget.type === 'file') {
-        // 使用原始下载URL
-        copyToClipboard(contextMenuTarget.download_url, 'Raw 链接已复制');
-    }
-    hideContextMenu();
-});
-
-contextCopyProxyLink.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (contextMenuTarget && contextMenuTarget.type === 'file') {
-        const [owner, repoName] = currentRepo.split('/');
-        const filePath = currentPath ? 
-            `${currentPath}/${contextMenuTarget.name}` : 
-            contextMenuTarget.name;
-        
-        // 使用仓库的默认分支（而不是HEAD）
-        const defaultBranch = repoBranches.get(currentRepo) || 'main';
-        
-        // 正确的路径编码（保留斜杠）
-        const encodedPath = encodeURI(filePath);
-        
-        const jsdelivrLink = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@${defaultBranch}/${encodedPath}`;
-        
-        copyToClipboard(jsdelivrLink, 'CDN 链接已复制');
-    }
-    hideContextMenu();
-});
-
-// 增强复制功能，添加兼容性处理
-function copyToClipboard(text, successMessage) {
-    // 创建隐藏的textarea元素
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.opacity = 0;
-    document.body.appendChild(textArea);
-    textArea.select();
-    
-    try {
-        // 尝试使用现代API
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text).then(() => {
-                showToast(successMessage);
-            });
-        } else {
-            // 使用兼容性方法
-            document.execCommand('copy');
-            showToast(successMessage);
+        e.stopPropagation();
+        if (contextMenuTarget && contextMenuTarget.type === 'file') {
+            // 使用原始下载URL
+            copyToClipboard(contextMenuTarget.download_url, 'Raw 链接已复制');
         }
-    } catch (err) {
-        console.error('复制失败:', err);
-        showToast('复制失败: ' + err.message);
-    } finally {
-        // 清理
-        document.body.removeChild(textArea);
+        hideContextMenu();
+    });
+
+    contextCopyProxyLink.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (contextMenuTarget && contextMenuTarget.type === 'file') {
+            const [owner, repoName] = currentRepo.split('/');
+            const filePath = currentPath ? 
+                `${currentPath}/${contextMenuTarget.name}` : 
+                contextMenuTarget.name;
+            
+            // 使用仓库的默认分支（而不是HEAD）
+            const defaultBranch = repoBranches.get(currentRepo) || 'main';
+            
+            // 正确的路径编码（保留斜杠）
+            const encodedPath = encodeURI(filePath);
+            
+            const jsdelivrLink = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@${defaultBranch}/${encodedPath}`;
+            
+            copyToClipboard(jsdelivrLink, 'CDN 链接已复制');
+        }
+        hideContextMenu();
+    });
+
+    // 增强复制功能，添加兼容性处理
+    function copyToClipboard(text, successMessage) {
+        // 创建隐藏的textarea元素
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = 0;
+        document.body.appendChild(textArea);
+        textArea.select();
+        
+        try {
+            // 尝试使用现代API
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(successMessage);
+                });
+            } else {
+                // 使用兼容性方法
+                document.execCommand('copy');
+                showToast(successMessage);
+            }
+        } catch (err) {
+            console.error('复制失败:', err);
+            showToast('复制失败: ' + err.message);
+        } finally {
+            // 清理
+            document.body.removeChild(textArea);
+        }
     }
-}
     
     contextDelete.addEventListener('click', () => {
         if (contextMenuTarget) {
@@ -545,33 +550,33 @@ function copyToClipboard(text, successMessage) {
     
     // 启用网站菜单项点击 - 重构后的逻辑
     contextEnablePages.addEventListener('click', async () => {
-    if (!contextMenuTarget) return;
-    
-    // 立即更新按钮状态
-    const menuItem = contextEnablePages;
-    const originalHTML = menuItem.innerHTML;
-    menuItem.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><span>处理中...</span>';
-    
-    const targetRepo = getTargetRepo(contextMenuTarget);
-    const isEnabled = pagesEnabledMap.get(targetRepo) || false;
-    
-    try {
-        if (isEnabled) {
-            await disableGitHubPages(targetRepo);
-        } else {
-            // 显示对话框前先检查当前状态
-            await checkPagesStatus(targetRepo);
-            showStaticSiteDialog(contextMenuTarget);
+        if (!contextMenuTarget) return;
+        
+        // 立即更新按钮状态
+        const menuItem = contextEnablePages;
+        const originalHTML = menuItem.innerHTML;
+        menuItem.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><span>处理中...</span>';
+        
+        const targetRepo = getTargetRepo(contextMenuTarget);
+        const isEnabled = pagesEnabledMap.get(targetRepo) || false;
+        
+        try {
+            if (isEnabled) {
+                await disableGitHubPages(targetRepo);
+            } else {
+                // 显示对话框前先检查当前状态
+                await checkPagesStatus(targetRepo);
+                showStaticSiteDialog(contextMenuTarget);
+            }
+        } catch (error) {
+            console.error('操作失败:', error);
+            showToast(`操作失败: ${error.message}`);
+        } finally {
+            // 恢复按钮状态
+            menuItem.innerHTML = originalHTML;
+            hideContextMenu();
         }
-    } catch (error) {
-        console.error('操作失败:', error);
-        showToast(`操作失败: ${error.message}`);
-    } finally {
-        // 恢复按钮状态
-        menuItem.innerHTML = originalHTML;
-        hideContextMenu();
-    }
-});
+    });
     
     // 运行工作流菜单项点击
     contextBuildApp.addEventListener('click', () => {
@@ -682,83 +687,96 @@ function copyToClipboard(text, successMessage) {
             editor.trigger('', 'actions.find');
         }
     });
-
-    // 动态加载Monaco Editor
-    const monacoScript = document.createElement('script');
-    monacoScript.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js';
-    monacoScript.onload = function() {
-        // 确保require对象存在
-        window.require = window.require || {};
-        window.require.config = window.require.config || function(config) {
-            if (config.paths) {
-                this.paths = config.paths;
-            }
-        };
-        // 配置Monaco路径
-        window.require.config({
-            paths: { 
-                'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs' 
-            }
-        });
-    };
-    document.head.appendChild(monacoScript);
 });
+
+// 预加载Monaco Editor
+function preloadMonacoEditor() {
+    if (window.monaco && window.monaco.editor) {
+        monacoInitialized = true;
+        return;
+    }
+    
+    editorLoading = true;
+    editorLoadPromise = new Promise((resolve, reject) => {
+        const monacoScript = document.createElement('script');
+        monacoScript.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js';
+        monacoScript.onload = function() {
+            window.require = window.require || {};
+            window.require.config = window.require.config || function(config) {
+                if (config.paths) {
+                    this.paths = config.paths;
+                }
+            };
+            
+            window.require.config({
+                paths: { 
+                    'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs' 
+                }
+            });
+            
+            // 立即开始加载编辑器核心
+            loadEditorCore().then(resolve).catch(reject);
+        };
+        monacoScript.onerror = reject;
+        document.head.appendChild(monacoScript);
+    });
+}
+
+// 加载编辑器核心
+function loadEditorCore() {
+    return new Promise((resolve, reject) => {
+        try {
+            window.require(['vs/editor/editor.main'], () => {
+                monacoInitialized = true;
+                editorLoading = false;
+                resolve();
+            }, reject);
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
 
 // 初始化编辑器
 function initEditor() {
-    if (monacoInitialized) return;
-    
-    // 确保require已配置
-    if (window.require && window.require.config) {
-        window.require.config({
-            paths: { 
-                'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs' 
-            }
-        });
+    if (!window.monaco || !window.monaco.editor) {
+        throw new Error('Monaco Editor未加载完成');
     }
     
     try {
-        // 使用全局require函数
-        window.require(['vs/editor/editor.main'], function() {
-            try {
-                const editorOptions = {
-                    value: '',
-                    language: 'text',
-                    theme: 'vs',
-                    automaticLayout: true,
-                    fontSize: 14,
-                    minimap: { enabled: true },
-                    scrollBeyondLastLine: false,
-                    wordWrap: 'on',
-                    wrappingIndent: 'indent'
-                };
+        const editorOptions = {
+            value: '',
+            language: 'text',
+            theme: 'vs',
+            automaticLayout: true,
+            fontSize: 14,
+            minimap: { enabled: true },
+            scrollBeyondLastLine: false,
+            wordWrap: 'on',
+            wrappingIndent: 'indent'
+        };
 
-                // 移动设备特定配置
-                if (window.innerWidth <= 768) {
-                    editorOptions.minimap = { enabled: false };
-                    editorOptions.fontSize = 10;
-                    editorOptions.lineHeight = 16;
-                }
+        // 移动设备特定配置
+        if (window.innerWidth <= 768) {
+            editorOptions.minimap = { enabled: false };
+            editorOptions.fontSize = 10;
+            editorOptions.lineHeight = 16;
+        }
 
-                editor = monaco.editor.create(document.getElementById('editor'), editorOptions);
-                
-                monacoInitialized = true;
-                
-                // 添加键盘快捷键 (Ctrl+S / Cmd+S)
-                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
-                    saveFileChanges();
-                });
-
-                // 添加虚拟键盘检测
-                if (window.innerWidth <= 768) {
-                    window.addEventListener('resize', handleMobileKeyboard);
-                }
-            } catch (createError) {
-                console.error('创建Monaco编辑器实例失败:', createError);
-            }
+        editor = monaco.editor.create(document.getElementById('editor'), editorOptions);
+        
+        // 添加键盘快捷键 (Ctrl+S / Cmd+S)
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
+            saveFileChanges();
         });
-    } catch (error) {
-        console.error('加载Monaco编辑器失败:', error);
+
+        // 添加虚拟键盘检测
+        if (window.innerWidth <= 768) {
+            window.addEventListener('resize', handleMobileKeyboard);
+        }
+    } catch (createError) {
+        console.error('创建Monaco编辑器实例失败:', createError);
+        throw createError;
     }
 }
 
@@ -810,8 +828,7 @@ function setEditorContent(content, fileExt) {
 async function openFileInEditor(fileInfo) {
     // 检查文件大小 (<1MB)
     if (fileInfo.size > 1024 * 1024) {
-        showToast('文件过大，请在浏览器中查看');
-        window.open(fileInfo.download_url, '_blank');
+        showToast('文件过大，无法在编辑器中打开');
         return;
     }
     
@@ -819,79 +836,100 @@ async function openFileInEditor(fileInfo) {
     const fileExt = fileInfo.name.split('.').pop().toLowerCase();
     if (!textFileExtensions.includes(fileExt)) {
         showToast('不支持编辑此文件类型');
-        window.open(fileInfo.download_url, '_blank');
         return;
     }
     
     try {
-        showToast('正在加载文件内容...');
+        // 显示加载状态
+        showToast('正在准备编辑器...');
         currentEditingFile = fileInfo;
         
-        // 构建CDN URL（使用jsDelivr加速）
+        // 确保编辑器已加载
+        if (!monacoInitialized) {
+            if (!editorLoadPromise) {
+                preloadMonacoEditor();
+            }
+            
+            // 显示编辑器加载状态
+            const loadingToast = showPersistentToast('正在加载编辑器，请改变网络环境...');
+            
+            try {
+                await editorLoadPromise;
+                loadingToast.remove();
+            } catch (error) {
+                loadingToast.remove();
+                throw new Error('编辑加载失败');
+            }
+        }
+        
+        // 获取文件内容
+        showToast('正在加载文件内容...');
         const [owner, repoName] = currentRepo.split('/');
-        // 正确处理子文件夹路径
         const filePath = currentPath ? 
             `${currentPath}/${fileInfo.name}` : 
             fileInfo.name;
         const encodedPath = encodeURIComponent(filePath).replace(/%2F/g, '/');
-        const cdnUrl = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@HEAD/${encodedPath}`;
         
-        // 尝试使用CDN获取文件内容
-        const response = await fetch(cdnUrl);
-        
-        // 如果CDN失败，回退到原始URL
-        if (!response.ok) {
-            showToast('CDN加载失败，尝试原始链接...');
+        // 尝试CDN和原始URL
+        let content = '';
+        try {
+            const cdnUrl = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@HEAD/${encodedPath}`;
+            const response = await fetch(cdnUrl);
+            content = await response.text();
+        } catch (cdnError) {
+            console.log('CDN加载失败，尝试原始URL', cdnError);
             const fallbackResponse = await fetch(fileInfo.download_url);
             if (!fallbackResponse.ok) throw new Error('获取文件内容失败');
-            const content = await fallbackResponse.text();
-            initAndSetEditor(content, fileExt);
-        } else {
-            const content = await response.text();
-            initAndSetEditor(content, fileExt);
+            content = await fallbackResponse.text();
         }
+        
+        // 初始化编辑器（如果尚未初始化）
+        if (!editor) {
+            initEditor();
+            
+            // 等待编辑器创建完成
+            let attempts = 0;
+            while (!editor && attempts < 10) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            
+            if (!editor) {
+                throw new Error('编辑器初始化超时');
+            }
+        }
+        
+        // 设置编辑器内容
+        setEditorContent(content, fileExt);
+        showToast('编辑器已准备好');
         
     } catch (error) {
         console.error('打开编辑器失败:', error);
-        showToast('加载文件失败: ' + error.message);
+        showToast('加载失败: ' + error.message);
+        closeEditor();
     }
 }
 
-// 初始化并设置编辑器内容
-function initAndSetEditor(content, fileExt) {
-    // 初始化编辑器（如果尚未初始化）
-    if (!monacoInitialized) {
-        try {
-            initEditor();
-        } catch (e) {
-            console.error('Monaco初始化失败:', e);
-            // 初始化失败，则直接打开文件
-            showToast('编辑器加载失败，将在新标签页打开文件');
-            window.open(fileInfo.download_url, '_blank');
-            return;
-        }
-    }
+// 显示持久化Toast
+function showPersistentToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-50';
+    toast.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas fa-spinner fa-spin mr-2"></i>
+            <span>${message}</span>
+        </div>
+    `;
+    document.body.appendChild(toast);
     
-    // 如果editor实例不存在，则尝试创建
-    if (!editor) {
-        // 等待一段时间，如果还没有则打开文件
-        let waitCount = 0;
-        const waitInterval = setInterval(() => {
-            if (editor) {
-                clearInterval(waitInterval);
-                setEditorContent(content, fileExt);
-            } else if (waitCount >= 10) { // 10次，每次100ms，共1秒
-                clearInterval(waitInterval);
-                showToast('编辑器加载超时，将在新标签页打开文件');
-                window.open(fileInfo.download_url, '_blank');
+    return {
+        remove: () => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
             }
-            waitCount++;
-        }, 100);
-    } else {
-        setEditorContent(content, fileExt);
-    }
+        }
+    };
 }
-
 
 // 保存文件修改
 async function saveFileChanges() {
