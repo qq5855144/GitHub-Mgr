@@ -801,7 +801,7 @@ function setEditorContent(content, fileExt) {
     setTimeout(() => editor.focus(), 100);
 }
 
-// 打开文件编辑器
+// 打开文件编辑器（使用CDN加速）
 async function openFileInEditor(fileInfo) {
     // 检查文件大小 (<1MB)
     if (fileInfo.size > 1024 * 1024) {
@@ -820,49 +820,73 @@ async function openFileInEditor(fileInfo) {
     
     try {
         showToast('正在加载文件内容...');
-        currentEditingFile = fileInfo;                       
-        // 获取文件原始内容
-        const response = await fetch(fileInfo.download_url);
-        if (!response.ok) throw new Error('获取文件内容失败');
+        currentEditingFile = fileInfo;
         
-        const content = await response.text();
+        // 构建CDN URL（使用jsDelivr加速）
+        const [owner, repoName] = currentRepo.split('/');
+        // 正确处理子文件夹路径
+        const filePath = currentPath ? 
+            `${currentPath}/${fileInfo.name}` : 
+            fileInfo.name;
+        const encodedPath = encodeURIComponent(filePath).replace(/%2F/g, '/');
+        const cdnUrl = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@HEAD/${encodedPath}`;
         
-        // 初始化编辑器（如果尚未初始化）
-        if (!monacoInitialized) {
-            try {
-                initEditor();
-            } catch (e) {
-                console.error('Monaco初始化失败:', e);
-                // 初始化失败，则直接打开文件
-                showToast('编辑器加载失败，将在新标签页打开文件');
-                window.open(fileInfo.download_url, '_blank');
-                return;
-            }
-        }
+        // 尝试使用CDN获取文件内容
+        const response = await fetch(cdnUrl);
         
-        // 如果editor实例不存在，则尝试创建（可能因为异步加载还未完成）
-        if (!editor) {
-            // 等待一段时间，如果还没有则打开文件
-            let waitCount = 0;
-            const waitInterval = setInterval(() => {
-                if (editor) {
-                    clearInterval(waitInterval);
-                    setEditorContent(content, fileExt);
-                } else if (waitCount >= 10) { // 10次，每次100ms，共1秒
-                    clearInterval(waitInterval);
-                    showToast('编辑器加载超时，将在新标签页打开文件');
-                    window.open(fileInfo.download_url, '_blank');
-                }
-                waitCount++;
-            }, 100);
+        // 如果CDN失败，回退到原始URL
+        if (!response.ok) {
+            showToast('CDN加载失败，尝试原始链接...');
+            const fallbackResponse = await fetch(fileInfo.download_url);
+            if (!fallbackResponse.ok) throw new Error('获取文件内容失败');
+            const content = await fallbackResponse.text();
+            initAndSetEditor(content, fileExt);
         } else {
-            setEditorContent(content, fileExt);
+            const content = await response.text();
+            initAndSetEditor(content, fileExt);
         }
+        
     } catch (error) {
         console.error('打开编辑器失败:', error);
         showToast('加载文件失败: ' + error.message);
     }
 }
+
+// 初始化并设置编辑器内容
+function initAndSetEditor(content, fileExt) {
+    // 初始化编辑器（如果尚未初始化）
+    if (!monacoInitialized) {
+        try {
+            initEditor();
+        } catch (e) {
+            console.error('Monaco初始化失败:', e);
+            // 初始化失败，则直接打开文件
+            showToast('编辑器加载失败，将在新标签页打开文件');
+            window.open(fileInfo.download_url, '_blank');
+            return;
+        }
+    }
+    
+    // 如果editor实例不存在，则尝试创建
+    if (!editor) {
+        // 等待一段时间，如果还没有则打开文件
+        let waitCount = 0;
+        const waitInterval = setInterval(() => {
+            if (editor) {
+                clearInterval(waitInterval);
+                setEditorContent(content, fileExt);
+            } else if (waitCount >= 10) { // 10次，每次100ms，共1秒
+                clearInterval(waitInterval);
+                showToast('编辑器加载超时，将在新标签页打开文件');
+                window.open(fileInfo.download_url, '_blank');
+            }
+            waitCount++;
+        }, 100);
+    } else {
+        setEditorContent(content, fileExt);
+    }
+}
+
 
 // 保存文件修改
 async function saveFileChanges() {
