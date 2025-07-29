@@ -11,6 +11,7 @@ let buildTimer = null;
 let buildStatus = null;
 // 使用Map存储每个仓库的Pages状态
 let pagesEnabledMap = new Map();
+let repoBranches = new Map(); // 存储仓库的默认分支
 
 // 编辑器相关变量
 let editor = null;
@@ -480,9 +481,13 @@ contextCopyProxyLink.addEventListener('click', (e) => {
             `${currentPath}/${contextMenuTarget.name}` : 
             contextMenuTarget.name;
         
-        // 使用更可靠的CDN URL格式
-        const encodedPath = encodeURIComponent(filePath).replace(/%2F/g, '/');
-        const jsdelivrLink = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@HEAD/${encodedPath}`;
+        // 使用仓库的默认分支（而不是HEAD）
+        const defaultBranch = repoBranches.get(currentRepo) || 'main';
+        
+        // 正确的路径编码（保留斜杠）
+        const encodedPath = encodeURI(filePath);
+        
+        const jsdelivrLink = `https://cdn.jsdelivr.net/gh/${owner}/${repoName}@${defaultBranch}/${encodedPath}`;
         
         copyToClipboard(jsdelivrLink, 'CDN 链接已复制');
     }
@@ -1494,7 +1499,7 @@ async function loadRepositoryContents(repo, path = '') {
     updateBreadcrumb([repo, ...pathParts]);
     
     try {
-        // 使用GraphQL API获取仓库内容
+        // 使用GraphQL API获取仓库内容（添加默认分支查询）
         const response = await fetch('https://api.github.com/graphql', {
             method: 'POST',
             headers: {
@@ -1506,6 +1511,9 @@ async function loadRepositoryContents(repo, path = '') {
                 query: `
                     query {
                         repository(owner: "${repo.split('/')[0]}", name: "${repo.split('/')[1]}") {
+                            defaultBranchRef {
+                                name
+                            }
                             object(expression: "HEAD:${path}") {
                                 ... on Tree {
                                     entries {
@@ -1571,6 +1579,11 @@ async function loadRepositoryContents(repo, path = '') {
         } else {
             staticSiteBtn.classList.add('hidden');
         }
+        
+        // 存储默认分支
+        const repoData = data.data.repository;
+        const defaultBranch = repoData.defaultBranchRef.name;
+        repoBranches.set(repo, defaultBranch);
         
         // 检查该仓库的Pages状态
         await checkPagesStatus(repo);
@@ -1694,7 +1707,7 @@ fileItem.addEventListener('click', (e) => {
     }
 });
 
-// 背景预览函数
+  // 背景预览函数
 function showImagePreview(item) {
     // 创建预览容器
     const previewContainer = document.createElement('div');
