@@ -1,4 +1,4 @@
-// 全局状态
+// 全局状态hhhfhfjhf
 let currentRepo = '';
 let currentPath = '';
 let currentFiles = [];
