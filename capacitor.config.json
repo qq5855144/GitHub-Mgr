@@ -1,6 +1,0 @@
-{
-  "appId": "com.example.githubmgr",
-  "appName": "GitHub Mgr",
-  "webDir": "dist",
-  "bundledWebRuntime": false
-}
