@@ -782,6 +782,7 @@ function setEditorContent(content, fileExt) {
     setTimeout(() => editor.focus(), 100);
 }
 
+// 修改后的文件打开函数
 async function openFileInEditor(fileInfo) {
     if (fileInfo.size > 1024 * 1024) {
         showToast('文件过大，请在浏览器中查看');
@@ -798,16 +799,45 @@ async function openFileInEditor(fileInfo) {
         showToast('正在加载文件内容...');
         currentEditingFile = fileInfo;
         
-        const [content] = await Promise.all([
-            fetch(fileInfo.download_url).then(r => r.ok ? r.text() : Promise.reject('获取文件内容失败')),
-            initEditor()
-        ]);
+        // 使用API获取文件内容（包含SHA）
+        const [fileContent, sha] = await fetchFileContentWithSHA();
         
-        setEditorContent(content, fileExt);
+        // 保存SHA值用于后续保存
+        currentEditingFile.sha = sha;
+        
+        // 初始化编辑器并设置内容
+        await initEditor();
+        setEditorContent(fileContent, fileExt);
     } catch (error) {
         console.error('打开编辑器失败:', error);
         showToast('加载文件失败: ' + error.message);
     }
+}
+
+// 新增函数：通过API获取文件内容和SHA
+async function fetchFileContentWithSHA() {
+    const apiUrl = `https://api.github.com/repos/${currentRepo}/contents/${
+        currentPath ? encodeURIComponent(currentPath) + '/' : ''
+    }${encodeURIComponent(currentEditingFile.name)}`;
+    
+    const response = await fetch(apiUrl, {
+        headers: {
+            'Authorization': `token ${githubToken}`,
+            'Accept': 'application/vnd.github.v3.raw'
+        }
+    });
+    
+    if (!response.ok) {
+        throw new Error('获取文件内容失败: ' + response.status);
+    }
+    
+    // 获取SHA值（从响应头中）
+    const sha = response.headers.get('ETag') || '';
+    
+    // 获取文件内容
+    const content = await response.text();
+    
+    return [content, sha];
 }
 
 async function saveFileChanges() {
@@ -816,22 +846,11 @@ async function saveFileChanges() {
     try {
         const newContent = editor.getValue();
         
-        const shaResponse = await fetch(
-            `https://api.github.com/repos/${currentRepo}/contents/${currentPath ? currentPath + '/' : ''}${currentEditingFile.name}`,
-            {
-                headers: {
-                    'Authorization': `token ${githubToken}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                }
-            }
-        );
-        
-        if (!shaResponse.ok) {
-            throw new Error('获取文件信息失败');
+        // 使用保存的SHA值
+        const sha = currentEditingFile.sha;
+        if (!sha) {
+            throw new Error('缺少文件SHA值，无法保存');
         }
-        
-        const shaData = await shaResponse.json();
-        const sha = shaData.sha;
         
         const updateResponse = await fetch(
             `https://api.github.com/repos/${currentRepo}/contents/${currentPath ? currentPath + '/' : ''}${currentEditingFile.name}`,
@@ -1585,7 +1604,7 @@ fileItem.addEventListener('click', (e) => {
     }
 });
 
-// 背景预览函数
+// 修改后的图片预览函数 - 使用API获取图片
 function showImagePreview(item) {
     // 创建预览容器
     const previewContainer = document.createElement('div');
@@ -1599,7 +1618,9 @@ function showImagePreview(item) {
                 </button>
             </div>
             <div class="image-preview-body">
-                <img src="${item.download_url}" alt="${item.name}" loading="lazy">
+                <div class="loading-indicator">
+                    <i class="fas fa-spinner fa-spin"></i> 加载中...
+                </div>
             </div>
             <div class="image-preview-footer">
                 <div class="background-toggle">
@@ -1622,9 +1643,20 @@ function showImagePreview(item) {
     document.body.appendChild(previewContainer);
     document.body.style.overflow = 'hidden';
     
-    // 获取图片元素
-    const img = previewContainer.querySelector('img');
+    // 获取图片容器元素
     const imgBody = previewContainer.querySelector('.image-preview-body');
+    
+    // 使用API获取图片内容
+    fetchImageContent(item).then(blobUrl => {
+    // 移除加载指示器
+    imgBody.innerHTML = '';
+    
+    // 创建图片元素
+    const img = document.createElement('img');
+    img.src = blobUrl;
+    img.alt = item.name;
+    img.loading = 'lazy';
+    imgBody.appendChild(img);
     
     // 根据图片类型设置初始背景
     const ext = item.name.split('.').pop().toLowerCase();
@@ -1647,6 +1679,23 @@ function showImagePreview(item) {
         imgBody.className = 'image-preview-body checkerboard-bg';
     });
     
+    // 图片加载错误处理
+    img.onerror = () => {
+        imgBody.innerHTML = '<div class="text-red-500">图片加载失败</div>';
+        // 释放 blob URL
+        URL.revokeObjectURL(blobUrl);
+    };
+    
+    // 图片加载成功后释放内存
+    img.onload = () => {
+        // 稍后释放Blob URL
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    };
+}).catch(error => {
+    console.error('获取图片失败:', error);
+    imgBody.innerHTML = '<div class="text-red-500">图片加载失败: ' + error.message + '</div>';
+});
+    
     // 关闭预览的函数
     const closePreview = () => {
         document.body.removeChild(previewContainer);
@@ -1663,12 +1712,46 @@ function showImagePreview(item) {
             document.removeEventListener('keydown', escClose);
         }
     });
-    
-    // 图片加载错误处理
-    img.onerror = () => {
-        imgBody.innerHTML = '<div class="text-red-500">图片加载失败</div>';
-    };
 }
+
+// 使用API获取图片内容
+async function fetchImageContent(fileInfo) {
+    const apiUrl = `https://api.github.com/repos/${currentRepo}/contents/${
+        currentPath ? encodeURIComponent(currentPath) + '/' : ''
+    }${encodeURIComponent(fileInfo.name)}`;
+    
+    const response = await fetch(apiUrl, {
+        headers: {
+            'Authorization': `token ${githubToken}`,
+            'Accept': 'application/vnd.github.v3.raw'
+        }
+    });
+    
+    if (!response.ok) {
+        throw new Error('获取图片内容失败: ' + response.status);
+    }
+    
+    const blob = await response.blob();
+    
+    // 检查文件扩展名，如果是svg，则修正MIME类型
+    const ext = fileInfo.name.split('.').pop().toLowerCase();
+    if (ext === 'svg') {
+        // 创建一个新的Blob，指定正确的类型
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                // 将读取的内容转换为字符串，然后创建正确类型的Blob
+                const svgString = reader.result;
+                const correctedBlob = new Blob([svgString], { type: 'image/svg+xml' });
+                resolve(URL.createObjectURL(correctedBlob));
+            };
+            reader.readAsText(blob);
+        });
+    }
+    
+    return URL.createObjectURL(blob);
+}
+
         
         const icon = document.createElement('i');
         icon.className = `file-icon ${item.type === 'dir' ? 'fas fa-folder folder-icon' : 
@@ -2119,7 +2202,7 @@ async function deleteFile(fileInfo) {
         }
         
         const shaData = await shaResponse.json();
-        const sha = shaData.sha;
+        const sha = shaData.sha;       
 
         // 删除文件
         const deleteResponse = await fetch(
