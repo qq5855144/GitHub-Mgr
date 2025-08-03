@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub-Mgr</title>
+    <title>GitHub Mgr</title>
     <link rel="icon" href="https://github.githubassets.com/favicons/favicon.png" type="image/png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.47.0/min/vs/editor/editor.main.min.css">
     <script src="https://cdn.tailwindcss.com/3.3.3"></script>
@@ -12,54 +12,54 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="min-h-screen p-4 md:p-6">
-    <!-- è®¤è¯çé¢ -->
+    <!-- Ã¨Â®Â¤Ã¨Â¯ÂÃ§ÂÂÃ©ÂÂ¢ -->
     <div id="auth-screen" class="flex flex-col items-center justify-center min-h-screen">
         <div class="glass-panel p-8 w-full max-w-md mx-auto">
             <div class="text-center mb-8">
                 <i class="fab fa-github text-5xl mb-4" style="color: var(--primary-color);"></i>
                 <h1 class="text-3xl font-bold text-gray-800 mb-2">GitHub Mgr</h1>
-                <p class="text-gray-600">ä½¿ç¨æ¨ç GitHub Token ç»å½</p>
+                <p class="text-gray-600">Ã¤Â½Â¿Ã§ÂÂ¨Ã¦ÂÂ¨Ã§ÂÂ GitHub Token Ã§ÂÂ»Ã¥Â½Â</p>
             </div>
             
             <div class="mb-6">
-                <input type="text" id="github-token" placeholder="è¾å¥æ¨ç GitHub Token" 
+                <input type="text" id="github-token" placeholder="Ã¨Â¾ÂÃ¥ÂÂ¥Ã¦ÂÂ¨Ã§ÂÂ GitHub Token" 
                        class="glass-input mb-1">
                 <p id="token-error" class="text-red-500 text-sm hidden"></p>
             </div>
             
             <button id="auth-btn" class="glass-btn glass-btn-primary w-full py-3 font-medium flex items-center justify-center">
-                <span id="auth-btn-text">è®¤è¯å¹¶ç»§ç»­</span>
+                <span id="auth-btn-text">Ã¨Â®Â¤Ã¨Â¯ÂÃ¥Â¹Â¶Ã§Â»Â§Ã§Â»Â­</span>
                 <i id="auth-spinner" class="fas fa-spinner fa-spin ml-2 hidden"></i>
             </button>
             
             <div class="mt-8 text-sm text-gray-600">
-                <p class="font-medium mb-2">å¦ä½è·å Tokenï¼</p>
+                <p class="font-medium mb-2">Ã¥Â¦ÂÃ¤Â½ÂÃ¨ÂÂ·Ã¥ÂÂ TokenÃ¯Â¼Â</p>
                 <ol class="list-decimal pl-5 space-y-1">
-                    <li>ç»å½ GitHub è´¦æ·</li>
-                    <li>è®¿é® <a href="https://github.com/settings/tokens" target="_blank" class="text-blue-500 hover:underline">å¼åèè®¾ç½®</a></li>
-                    <li>åå»ºæ°çä¸ªäººè®¿é®ä»¤ç</li>
-                    <li>å¾é repo æé</li>
+                    <li>Ã§ÂÂ»Ã¥Â½Â GitHub Ã¨Â´Â¦Ã¦ÂÂ·</li>
+                    <li>Ã¨Â®Â¿Ã©ÂÂ® <a href="https://github.com/settings/tokens" target="_blank" class="text-blue-500 hover:underline">Ã¥Â¼ÂÃ¥ÂÂÃ¨ÂÂÃ¨Â®Â¾Ã§Â½Â®</a></li>
+                    <li>Ã¥ÂÂÃ¥Â»ÂºÃ¦ÂÂ°Ã§ÂÂÃ¤Â¸ÂªÃ¤ÂºÂºÃ¨Â®Â¿Ã©ÂÂ®Ã¤Â»Â¤Ã§ÂÂ</li>
+                    <li>Ã¥ÂÂ¾Ã©ÂÂ repo Ã¦ÂÂÃ©ÂÂ</li>
                 </ol>
             </div>
         </div>
     </div>
     
-    <!-- ä¸»çé¢ -->
+    <!-- Ã¤Â¸Â»Ã§ÂÂÃ©ÂÂ¢ -->
     <div id="main-screen" class="hidden flex-col h-full max-w-6xl mx-auto w-full">
-        <!-- é¡¶é¨å¯¼èªæ  -->
+        <!-- Ã©Â¡Â¶Ã©ÂÂ¨Ã¥Â¯Â¼Ã¨ÂÂªÃ¦Â Â -->
         <div class="top-nav glass-panel flex items-center p-4">
             <div id="path-container" class="flex-1 min-w-0 overflow-x-auto scrollbar-hidden">
                 <div id="current-path" class="text-lg font-semibold">
                     <div class="breadcrumb whitespace-nowrap">
                         <div class="breadcrumb-item" onclick="loadRepositories()">
                             <i class="fab fa-github mr-1"></i>
-                            <span>æçä»åº</span>
+                            <span>Ã¦ÂÂÃ§ÂÂÃ¤Â»ÂÃ¥ÂºÂ</span>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <!-- ç¨æ·èå -->
+            <!-- Ã§ÂÂ¨Ã¦ÂÂ·Ã¨ÂÂÃ¥ÂÂ -->
             <div class="user-menu">
                 <div id="user-menu-btn" class="user-menu-btn glass-btn p-2">
                     <i class="fas fa-user-circle text-lg"></i>
@@ -72,105 +72,105 @@
                     <div class="user-menu-divider"></div>
                     <div id="logout-btn" class="user-menu-item">
                         <i class="fas fa-sign-out-alt text-red-500"></i>
-                        <span class="text-red-500">éåºç»å½</span>
+                        <span class="text-red-500">Ã©ÂÂÃ¥ÂÂºÃ§ÂÂ»Ã¥Â½Â</span>
                     </div>
                 </div>
             </div>
         </div>
 
         
-        <!-- æä»¶åè¡¨åºå -->
+        <!-- Ã¦ÂÂÃ¤Â»Â¶Ã¥ÂÂÃ¨Â¡Â¨Ã¥ÂÂºÃ¥ÂÂ -->
         <div class="flex-1 overflow-y-auto">
             <div id="loading" class="flex justify-center items-center h-64">
                 <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
             </div>
             
             <div id="file-list" class="grid gap-3 hidden">
-                <!-- å¨æçæçæä»¶åè¡¨ -->
+                <!-- Ã¥ÂÂ¨Ã¦ÂÂÃ§ÂÂÃ¦ÂÂÃ§ÂÂÃ¦ÂÂÃ¤Â»Â¶Ã¥ÂÂÃ¨Â¡Â¨ -->
             </div>
             
             <div id="empty-state" class="hidden flex flex-col items-center justify-center h-64 text-gray-500">
                 <i class="fas fa-folder-open text-5xl mb-4 opacity-50"></i>
-                <p class="text-lg">å½åç®å½ä¸ºç©º</p>
+                <p class="text-lg">Ã¥Â½ÂÃ¥ÂÂÃ§ÂÂ®Ã¥Â½ÂÃ¤Â¸ÂºÃ§Â©Âº</p>
             </div>
         </div>
         
-        <!-- åºé¨å·¥å·æ  -->
+        <!-- Ã¥ÂºÂÃ©ÂÂ¨Ã¥Â·Â¥Ã¥ÂÂ·Ã¦Â Â -->
         <div id="toolbar" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 flex gap-3 p-3 toolbar">
-            <button id="back-btn" class="glass-btn p-3 hidden" title="è¿å">
+            <button id="back-btn" class="glass-btn p-3 hidden" title="Ã¨Â¿ÂÃ¥ÂÂ">
                 <i class="fas fa-arrow-left text-indigo-600"></i>
             </button>
-            <button id="refresh-btn" class="glass-btn p-3" title="å·æ°">
+            <button id="refresh-btn" class="glass-btn p-3" title="Ã¥ÂÂ·Ã¦ÂÂ°">
                 <i class="fas fa-sync-alt text-emerald-500"></i>
             </button>
-            <button id="new-repo-btn" class="glass-btn p-3" title="æ°å»ºä»åº">
+            <button id="new-repo-btn" class="glass-btn p-3" title="Ã¦ÂÂ°Ã¥Â»ÂºÃ¤Â»ÂÃ¥ÂºÂ">
                 <i class="fas fa-plus text-blue-500"></i>
             </button>
-            <button id="fork-repo-btn" class="glass-btn p-3 hidden" title="å¤å»ä»åº">
+            <button id="fork-repo-btn" class="glass-btn p-3 hidden" title="Ã¥Â¤ÂÃ¥ÂÂ»Ã¤Â»ÂÃ¥ÂºÂ">
                 <i class="fas fa-code-branch text-purple-500"></i>
             </button>       
-            <button id="new-folder-btn" class="glass-btn p-3 hidden" title="æ°å»ºæä»¶å¤¹">
+            <button id="new-folder-btn" class="glass-btn p-3 hidden" title="Ã¦ÂÂ°Ã¥Â»ÂºÃ¦ÂÂÃ¤Â»Â¶Ã¥Â¤Â¹">
                 <i class="fas fa-folder-plus text-amber-500"></i>
             </button>
-            <button id="upload-btn" class="glass-btn p-3 hidden" title="ä¸ä¼ æä»¶">
+            <button id="upload-btn" class="glass-btn p-3 hidden" title="Ã¤Â¸ÂÃ¤Â¼Â Ã¦ÂÂÃ¤Â»Â¶">
                 <i class="fas fa-upload text-violet-500"></i>
             </button>
-            <button id="select-btn" class="glass-btn p-3 hidden" title="éæ©æä»¶">
+            <button id="select-btn" class="glass-btn p-3 hidden" title="Ã©ÂÂÃ¦ÂÂ©Ã¦ÂÂÃ¤Â»Â¶">
                 <i class="fas fa-check-square text-blue-500"></i>
             </button>
-            <!-- æ·»å éæç½ç«æé® -->
-            <button id="static-site-btn" class="glass-btn p-3 hidden" title="å¯ç¨éæç½ç«">
+            <!-- Ã¦Â·Â»Ã¥ÂÂ Ã©ÂÂÃ¦ÂÂÃ§Â½ÂÃ§Â«ÂÃ¦ÂÂÃ©ÂÂ® -->
+            <button id="static-site-btn" class="glass-btn p-3 hidden" title="Ã¥ÂÂ¯Ã§ÂÂ¨Ã©ÂÂÃ¦ÂÂÃ§Â½ÂÃ§Â«Â">
                 <i class="fas fa-globe text-green-500"></i>
             </button>
         </div>
 
         
-        <!-- æ¹éæä½å·¥å·æ  -->
+        <!-- Ã¦ÂÂ¹Ã©ÂÂÃ¦ÂÂÃ¤Â½ÂÃ¥Â·Â¥Ã¥ÂÂ·Ã¦Â Â -->
         <div id="batch-toolbar" class="batch-toolbar">
             <div class="batch-count">
                 <i class="fas fa-check-circle mr-2"></i>
-                <span id="selected-count">0</span> å·²é
+                <span id="selected-count">0</span> Ã¥Â·Â²Ã©ÂÂ
             </div>
-            <button id="batch-download-btn" class="batch-toolbar-btn" title="ä¸è½½éä¸­æä»¶">
+            <button id="batch-download-btn" class="batch-toolbar-btn" title="Ã¤Â¸ÂÃ¨Â½Â½Ã©ÂÂÃ¤Â¸Â­Ã¦ÂÂÃ¤Â»Â¶">
                 <i class="fas fa-download"></i>
-                <span>ä¸è½½</span>
+                <span>Ã¤Â¸ÂÃ¨Â½Â½</span>
             </button>
-            <button id="batch-delete-btn" class="batch-toolbar-btn" title="å é¤éä¸­æä»¶">
+            <button id="batch-delete-btn" class="batch-toolbar-btn" title="Ã¥ÂÂ Ã©ÂÂ¤Ã©ÂÂÃ¤Â¸Â­Ã¦ÂÂÃ¤Â»Â¶">
                 <i class="fas fa-trash"></i>
-                <span>å é¤</span>
+                <span>Ã¥ÂÂ Ã©ÂÂ¤</span>
             </button>
-            <button id="batch-cancel-btn" class="batch-toolbar-btn" title="åæ¶éæ©">
+            <button id="batch-cancel-btn" class="batch-toolbar-btn" title="Ã¥ÂÂÃ¦Â¶ÂÃ©ÂÂÃ¦ÂÂ©">
                 <i class="fas fa-times"></i>
             </button>
         </div>
     </div>
     
-    <!-- æ·»å ç¼è¾å¨å®¹å¨ -->
+    <!-- Ã¦Â·Â»Ã¥ÂÂ Ã§Â¼ÂÃ¨Â¾ÂÃ¥ÂÂ¨Ã¥Â®Â¹Ã¥ÂÂ¨ -->
     <div id="editor-container" class="fixed inset-0 z-[2000] hidden flex-col bg-white">
         <div class="editor-header">
             <h2 id="editor-filename"></h2>
             <div class="editor-actions">
-                <button id="editor-save-btn" class="editor-btn editor-btn-save">ä¿å­</button>
-                <button id="editor-close-btn" class="editor-btn editor-btn-close">å³é­</button>
+                <button id="editor-save-btn" class="editor-btn editor-btn-save">Ã¤Â¿ÂÃ¥Â­Â</button>
+                <button id="editor-close-btn" class="editor-btn editor-btn-close">Ã¥ÂÂ³Ã©ÂÂ­</button>
             </div>
         </div>
         <div id="editor"></div>
-        <!-- æ°å¢ç§»å¨è®¾å¤å·¥å·æ  -->
+        <!-- Ã¦ÂÂ°Ã¥Â¢ÂÃ§Â§Â»Ã¥ÂÂ¨Ã¨Â®Â¾Ã¥Â¤ÂÃ¥Â·Â¥Ã¥ÂÂ·Ã¦Â Â -->
         <div class="mobile-editor-toolbar">
             <button class="mobile-toolbar-btn" id="mobile-save-btn">
-                <i class="fas fa-save"></i> ä¿å­
+                <i class="fas fa-save"></i> Ã¤Â¿ÂÃ¥Â­Â
             </button>
             <button class="mobile-toolbar-btn" id="mobile-close-btn">
-                <i class="fas fa-times"></i> å³é­
+                <i class="fas fa-times"></i> Ã¥ÂÂ³Ã©ÂÂ­
             </button>
             <button class="mobile-toolbar-btn" id="mobile-undo-btn">
-                <i class="fas fa-undo"></i> æ¤é
+                <i class="fas fa-undo"></i> Ã¦ÂÂ¤Ã©ÂÂ
             </button>
             <button class="mobile-toolbar-btn" id="mobile-redo-btn">
-                <i class="fas fa-redo"></i> éå
+                <i class="fas fa-redo"></i> Ã©ÂÂÃ¥ÂÂ
             </button>
             <button class="mobile-toolbar-btn" id="mobile-search-btn">
-                <i class="fas fa-search"></i> æç´¢
+                <i class="fas fa-search"></i> Ã¦ÂÂÃ§Â´Â¢
             </button>
         </div>
         <div class="editor-status-bar">
@@ -183,135 +183,135 @@
         </div>
     </div>
     
-    <!-- æä½æç¤º -->
+    <!-- Ã¦ÂÂÃ¤Â½ÂÃ¦ÂÂÃ§Â¤Âº -->
     <div id="toast" class="fixed bottom-20 left-1/2 transform -translate-x-1/2 glass-panel px-6 py-3 rounded-full opacity-0 transition-opacity duration-300 text-sm font-medium">
-        <!-- æç¤ºåå®¹ -->
+        <!-- Ã¦ÂÂÃ§Â¤ÂºÃ¥ÂÂÃ¥Â®Â¹ -->
     </div>
     
-    <!-- ç¡®è®¤å¯¹è¯æ¡ -->
+    <!-- Ã§Â¡Â®Ã¨Â®Â¤Ã¥Â¯Â¹Ã¨Â¯ÂÃ¦Â¡Â -->
     <div id="confirm-dialog" class="fixed inset-0 z-50 dialog-overlay flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
         <div id="confirm-content" class="dialog-content p-6 rounded-xl w-full max-w-md transform scale-90 transition-transform duration-300">
-            <h3 id="confirm-title" class="text-xl font-bold mb-2">ç¡®è®¤å é¤</h3>
-            <p id="confirm-message" class="text-gray-700 mb-6">æ¨ç¡®å®è¦å é¤è¿ä¸ªæä»¶åï¼æ­¤æä½ä¸å¯æ¤éã</p>
+            <h3 id="confirm-title" class="text-xl font-bold mb-2">Ã§Â¡Â®Ã¨Â®Â¤Ã¥ÂÂ Ã©ÂÂ¤</h3>
+            <p id="confirm-message" class="text-gray-700 mb-6">Ã¦ÂÂ¨Ã§Â¡Â®Ã¥Â®ÂÃ¨Â¦ÂÃ¥ÂÂ Ã©ÂÂ¤Ã¨Â¿ÂÃ¤Â¸ÂªÃ¦ÂÂÃ¤Â»Â¶Ã¥ÂÂÃ¯Â¼ÂÃ¦Â­Â¤Ã¦ÂÂÃ¤Â½ÂÃ¤Â¸ÂÃ¥ÂÂ¯Ã¦ÂÂ¤Ã©ÂÂÃ£ÂÂ</p>
             <div id="confirm-buttons" class="flex justify-end gap-3">
-                <button id="confirm-no" class="glass-btn px-4 py-2">åæ¶</button>
-                <button id="confirm-yes" class="glass-btn glass-btn-primary px-4 py-2">ç¡®è®¤å é¤</button>
+                <button id="confirm-no" class="glass-btn px-4 py-2">Ã¥ÂÂÃ¦Â¶Â</button>
+                <button id="confirm-yes" class="glass-btn glass-btn-primary px-4 py-2">Ã§Â¡Â®Ã¨Â®Â¤Ã¥ÂÂ Ã©ÂÂ¤</button>
             </div>
         </div>
     </div>
     
-    <!-- æ°å»ºæä»¶å¤¹å¯¹è¯æ¡ -->
+    <!-- Ã¦ÂÂ°Ã¥Â»ÂºÃ¦ÂÂÃ¤Â»Â¶Ã¥Â¤Â¹Ã¥Â¯Â¹Ã¨Â¯ÂÃ¦Â¡Â -->
     <div id="new-folder-dialog" class="fixed inset-0 z-50 dialog-overlay flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
         <div id="new-folder-content" class="dialog-content p-6 rounded-xl w-full max-w-md transform scale-90 transition-transform duration-300">
-            <h3 id="new-folder-title" class="text-xl font-bold mb-2">æ°å»ºæä»¶å¤¹</h3>
-            <input type="text" id="new-folder-name" placeholder="æä»¶å¤¹åç§°" class="glass-input mb-4">
+            <h3 id="new-folder-title" class="text-xl font-bold mb-2">Ã¦ÂÂ°Ã¥Â»ÂºÃ¦ÂÂÃ¤Â»Â¶Ã¥Â¤Â¹</h3>
+            <input type="text" id="new-folder-name" placeholder="Ã¦ÂÂÃ¤Â»Â¶Ã¥Â¤Â¹Ã¥ÂÂÃ§Â§Â°" class="glass-input mb-4">
             <div id="new-folder-buttons" class="flex justify-end gap-3">
-                <button id="new-folder-cancel" class="glass-btn px-4 py-2">åæ¶</button>
-                <button id="new-folder-create" class="glass-btn glass-btn-primary px-4 py-2">åå»º</button>
+                <button id="new-folder-cancel" class="glass-btn px-4 py-2">Ã¥ÂÂÃ¦Â¶Â</button>
+                <button id="new-folder-create" class="glass-btn glass-btn-primary px-4 py-2">Ã¥ÂÂÃ¥Â»Âº</button>
             </div>
         </div>
     </div>
     
-    <!-- æ°å»ºä»åºå¯¹è¯æ¡ -->
+    <!-- Ã¦ÂÂ°Ã¥Â»ÂºÃ¤Â»ÂÃ¥ÂºÂÃ¥Â¯Â¹Ã¨Â¯ÂÃ¦Â¡Â -->
     <div id="new-repo-dialog" class="fixed inset-0 z-50 dialog-overlay flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
         <div id="new-repo-content" class="dialog-content p-6 rounded-xl w-full max-w-md transform scale-90 transition-transform duration-300">
-            <h3 id="new-repo-title" class="text-xl font-bold mb-2">æ°å»ºä»åº</h3>
-            <input type="text" id="new-repo-name" placeholder="ä»åºåç§°" class="glass-input mb-3">
-            <input type="text" id="new-repo-desc" placeholder="ä»åºæè¿° (å¯é)" class="glass-input mb-3">
+            <h3 id="new-repo-title" class="text-xl font-bold mb-2">Ã¦ÂÂ°Ã¥Â»ÂºÃ¤Â»ÂÃ¥ÂºÂ</h3>
+            <input type="text" id="new-repo-name" placeholder="Ã¤Â»ÂÃ¥ÂºÂÃ¥ÂÂÃ§Â§Â°" class="glass-input mb-3">
+            <input type="text" id="new-repo-desc" placeholder="Ã¤Â»ÂÃ¥ÂºÂÃ¦ÂÂÃ¨Â¿Â° (Ã¥ÂÂ¯Ã©ÂÂ)" class="glass-input mb-3">
             <div class="flex items-center mb-4">
                 <input type="checkbox" id="new-repo-private" class="mr-2">
-                <label for="new-repo-private">ç§æä»åº</label>
+                <label for="new-repo-private">Ã§Â§ÂÃ¦ÂÂÃ¤Â»ÂÃ¥ÂºÂ</label>
             </div>
             <div id="new-repo-buttons" class="flex justify-end gap-3">
-                <button id="new-repo-cancel" class="glass-btn px-4 py-2">åæ¶</button>
-                <button id="new-repo-create" class="glass-btn glass-btn-primary px-4 py-2">åå»º</button>
+                <button id="new-repo-cancel" class="glass-btn px-4 py-2">Ã¥ÂÂÃ¦Â¶Â</button>
+                <button id="new-repo-create" class="glass-btn glass-btn-primary px-4 py-2">Ã¥ÂÂÃ¥Â»Âº</button>
             </div>
         </div>
     </div>
 
-    <!-- å¤å»ä»åºå¯¹è¯æ¡ -->
+    <!-- Ã¥Â¤ÂÃ¥ÂÂ»Ã¤Â»ÂÃ¥ÂºÂÃ¥Â¯Â¹Ã¨Â¯ÂÃ¦Â¡Â -->
     <div id="fork-repo-dialog" class="fixed inset-0 z-50 dialog-overlay flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
         <div id="fork-repo-content" class="dialog-content p-6 rounded-xl w-full max-w-md transform scale-90 transition-transform duration-300">
-            <h3 id="fork-repo-title" class="text-xl font-bold mb-2">å¤å»ä»åº</h3>
-            <input type="text" id="fork-repo-url" placeholder="è¾å¥GitHubä»åºURL" class="glass-input mb-4">
+            <h3 id="fork-repo-title" class="text-xl font-bold mb-2">Ã¥Â¤ÂÃ¥ÂÂ»Ã¤Â»ÂÃ¥ÂºÂ</h3>
+            <input type="text" id="fork-repo-url" placeholder="Ã¨Â¾ÂÃ¥ÂÂ¥GitHubÃ¤Â»ÂÃ¥ÂºÂURL" class="glass-input mb-4">
             <div id="fork-repo-buttons" class="flex justify-end gap-3">
-                <button id="fork-repo-cancel" class="glass-btn px-4 py-2">åæ¶</button>
-                <button id="fork-repo-confirm" class="glass-btn glass-btn-primary px-4 py-2">å¤å»</button>
+                <button id="fork-repo-cancel" class="glass-btn px-4 py-2">Ã¥ÂÂÃ¦Â¶Â</button>
+                <button id="fork-repo-confirm" class="glass-btn glass-btn-primary px-4 py-2">Ã¥Â¤ÂÃ¥ÂÂ»</button>
             </div>
         </div>
     </div>
 
-    <!-- ä¸ä¼ æä»¶å¯¹è¯æ¡ -->
+    <!-- Ã¤Â¸ÂÃ¤Â¼Â Ã¦ÂÂÃ¤Â»Â¶Ã¥Â¯Â¹Ã¨Â¯ÂÃ¦Â¡Â -->
     <div id="upload-dialog" class="fixed inset-0 z-50 dialog-overlay flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
         <div id="upload-content" class="dialog-content p-6 rounded-xl w-full max-w-md transform scale-90 transition-transform duration-300">
-            <h3 id="upload-title" class="text-xl font-bold mb-2">ä¸ä¼ æä»¶</h3>
+            <h3 id="upload-title" class="text-xl font-bold mb-2">Ã¤Â¸ÂÃ¤Â¼Â Ã¦ÂÂÃ¤Â»Â¶</h3>
             <input type="file" id="file-input" class="glass-input mb-4" multiple>
             <div id="upload-buttons" class="flex justify-end gap-3">
-                <button id="upload-cancel" class="glass-btn px-4 py-2">åæ¶</button>
-                <button id="upload-file" class="glass-btn glass-btn-primary px-4 py-2">ä¸ä¼ </button>
+                <button id="upload-cancel" class="glass-btn px-4 py-2">Ã¥ÂÂÃ¦Â¶Â</button>
+                <button id="upload-file" class="glass-btn glass-btn-primary px-4 py-2">Ã¤Â¸ÂÃ¤Â¼Â </button>
             </div>
         </div>
     </div>
     
-    <!-- ä¸ä¸æèå -->
+    <!-- Ã¤Â¸ÂÃ¤Â¸ÂÃ¦ÂÂÃ¨ÂÂÃ¥ÂÂ -->
     <div id="context-menu" class="context-menu">
         <div id="context-open" class="context-menu-item">
             <i class="fas fa-folder-open"></i>
-            <span>æå¼</span>
+            <span>Ã¦ÂÂÃ¥Â¼Â</span>
         </div>
         <div class="context-menu-divider"></div>  
         
         <div id="context-download" class="context-menu-item">
             <i class="fas fa-download"></i>
-            <span>ä¸è½½</span>
+            <span>Ã¤Â¸ÂÃ¨Â½Â½</span>
         </div>
               
         <div id="context-rename" class="context-menu-item">
             <i class="fas fa-edit"></i>
-            <span>éå½å</span>
+            <span>Ã©ÂÂÃ¥ÂÂ½Ã¥ÂÂ</span>
         </div>
                 
         <div id="context-copy-link" class="context-menu-item">
             <i class="fas fa-link"></i>
-            <span>å¤å¶é¾æ¥</span>
+            <span>Ã¥Â¤ÂÃ¥ÂÂ¶Ã©ÂÂ¾Ã¦ÂÂ¥</span>
         </div>
                 
         <div id="context-copy-proxy-link" class="context-menu-item">
             <i class="fas fa-share-alt"></i>
-            <span>å¤å¶ä»£çé¾æ¥</span>
+            <span>Ã¥Â¤ÂÃ¥ÂÂ¶Ã¤Â»Â£Ã§ÂÂÃ©ÂÂ¾Ã¦ÂÂ¥</span>
         </div>
                 
-        <!-- ä»åºçº§èå -->
+        <!-- Ã¤Â»ÂÃ¥ÂºÂÃ§ÂºÂ§Ã¨ÂÂÃ¥ÂÂ -->
         <div id="context-download-source" class="context-menu-item">
             <i class="fas fa-download text-blue-500"></i>
-            <span class="text-blue-500">ä¸è½½æºç </span>
+            <span class="text-blue-500">Ã¤Â¸ÂÃ¨Â½Â½Ã¦ÂºÂÃ§Â Â</span>
         </div>
                 
-        <!-- è§¦åå·¥ä½æµ -->       
+        <!-- Ã¨Â§Â¦Ã¥ÂÂÃ¥Â·Â¥Ã¤Â½ÂÃ¦ÂµÂ -->       
         <div id="context-build-app" class="context-menu-item context-build-app">
             <i class="fas fa-hammer"></i>
-            <span>è¿è¡å·¥ä½æµ</span>
+            <span>Ã¨Â¿ÂÃ¨Â¡ÂÃ¥Â·Â¥Ã¤Â½ÂÃ¦ÂµÂ</span>
         </div>                                  
-        <!-- æ·»å éæç½ç«éé¡¹ -->        
+        <!-- Ã¦Â·Â»Ã¥ÂÂ Ã©ÂÂÃ¦ÂÂÃ§Â½ÂÃ§Â«ÂÃ©ÂÂÃ©Â¡Â¹ -->        
         <div id="context-enable-pages" class="context-menu-item">
             <i class="fas fa-globe text-green-500"></i>
-            <span class="text-green-500">å¯ç¨éæç½ç«</span>
+            <span class="text-green-500">Ã¥ÂÂ¯Ã§ÂÂ¨Ã©ÂÂÃ¦ÂÂÃ§Â½ÂÃ§Â«Â</span>
         </div>
             
         <div class="context-menu-divider"></div>       
         <div id="context-delete" class="context-menu-item">
             <i class="fas fa-trash text-red-500"></i>
-            <span class="text-red-500">å é¤</span>
+            <span class="text-red-500">Ã¥ÂÂ Ã©ÂÂ¤</span>
         </div>
     </div>
     
-    <!-- æ·»å éæç½ç«éç½®å¯¹è¯æ¡ -->
+    <!-- Ã¦Â·Â»Ã¥ÂÂ Ã©ÂÂÃ¦ÂÂÃ§Â½ÂÃ§Â«ÂÃ©ÂÂÃ§Â½Â®Ã¥Â¯Â¹Ã¨Â¯ÂÃ¦Â¡Â -->
     <div id="static-site-dialog" class="fixed inset-0 z-50 dialog-overlay flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
         <div id="static-site-content" class="dialog-content p-6 rounded-xl w-full max-w-md transform scale-90 transition-transform duration-300">
-            <h3 id="static-site-title" class="text-xl font-bold mb-4">éæç½ç«éç½®</h3>
+            <h3 id="static-site-title" class="text-xl font-bold mb-4">Ã©ÂÂÃ¦ÂÂÃ§Â½ÂÃ§Â«ÂÃ©ÂÂÃ§Â½Â®</h3>
             
             <div class="mb-4">
-                <label class="block text-gray-700 mb-2 font-medium">åæ¯</label>
+                <label class="block text-gray-700 mb-2 font-medium">Ã¥ÂÂÃ¦ÂÂ¯</label>
                 <select id="pages-branch" class="glass-input mb-1">
                     <option value="main">main</option>
                     <option value="master">master</option>
@@ -320,36 +320,36 @@
             </div>
             
             <div class="mb-4">
-                <label class="block text-gray-700 mb-2 font-medium">ç®å½</label>
+                <label class="block text-gray-700 mb-2 font-medium">Ã§ÂÂ®Ã¥Â½Â</label>
                 <select id="pages-folder" class="glass-input mb-1">
-                    <option value="/">æ ¹ç®å½</option>
-                    <option value="/docs">docs æä»¶å¤¹</option>
+                    <option value="/">Ã¦Â Â¹Ã§ÂÂ®Ã¥Â½Â</option>
+                    <option value="/docs">docs Ã¦ÂÂÃ¤Â»Â¶Ã¥Â¤Â¹</option>
                 </select>
             </div>
             
             <div id="pages-status" class="mb-4 hidden">
                 <div class="flex items-center">
                     <i class="fas fa-circle text-green-500 mr-2"></i>
-                    <span class="font-medium">ç½ç«å·²å¯ç¨</span>
+                    <span class="font-medium">Ã§Â½ÂÃ§Â«ÂÃ¥Â·Â²Ã¥ÂÂ¯Ã§ÂÂ¨</span>
                 </div>
                 <div class="mt-2">
-                    <span class="text-sm">è®¿é®å°å: </span>
+                    <span class="text-sm">Ã¨Â®Â¿Ã©ÂÂ®Ã¥ÂÂ°Ã¥ÂÂ: </span>
                     <a id="pages-url" href="#" target="_blank" class="text-blue-500 text-sm hover:underline"></a>
                 </div>
             </div>
             
             <div id="static-site-buttons" class="flex justify-end gap-3">
-                <button id="static-site-cancel" class="glass-btn px-4 py-2">åæ¶</button>
-                <button id="static-site-enable" class="glass-btn glass-btn-primary px-4 py-2">å¯ç¨</button>
+                <button id="static-site-cancel" class="glass-btn px-4 py-2">Ã¥ÂÂÃ¦Â¶Â</button>
+                <button id="static-site-enable" class="glass-btn glass-btn-primary px-4 py-2">Ã¥ÂÂ¯Ã§ÂÂ¨</button>
             </div>
         </div>
     </div>
     
-    <!-- æ°å¢æå»ºç¶ææç¤º -->
+    <!-- Ã¦ÂÂ°Ã¥Â¢ÂÃ¦ÂÂÃ¥Â»ÂºÃ§ÂÂ¶Ã¦ÂÂÃ¦ÂÂÃ§Â¤Âº -->
     <div id="build-status" class="build-status glass-panel p-4 hidden">
         <div class="flex items-center mb-2">
             <i id="build-icon" class="fas fa-cog animate-spin text-blue-500 mr-2"></i>
-            <h3 class="font-semibold">æå»ºç¶æ</h3>
+            <h3 class="font-semibold">Ã¦ÂÂÃ¥Â»ÂºÃ§ÂÂ¶Ã¦ÂÂ</h3>
             <button id="close-build-status" class="ml-auto text-gray-500 hover:text-gray-700">
                 <i class="fas fa-times"></i>
             </button>
