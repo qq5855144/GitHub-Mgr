@@ -669,6 +669,27 @@ function copyToClipboard(text, successMessage) {
     }
 });
 
+// 工具函数：正确解码Base64字符串为UTF-8
+function decodeBase64Utf8(base64) {
+    try {
+        // 现代浏览器支持TextDecoder
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return new TextDecoder('utf-8').decode(bytes);
+    } catch (e) {
+        // 兼容旧浏览器
+        try {
+            return decodeURIComponent(escape(atob(base64)));
+        } catch (e2) {
+            console.error('Base64解码失败:', e2);
+            return atob(base64); // 回退到基本解码
+        }
+    }
+}
+
 // 初始化编辑器
 function initEditor() {
     if (monacoInitialized) return Promise.resolve();
@@ -725,19 +746,31 @@ function initEditor() {
                     resolve();
                 } catch (createError) {
                     console.error('创建Monaco编辑器实例失败:', createError);
-                    reject(createError);
+                    // 回退到textarea
+                    document.getElementById('editor').innerHTML = `
+                        <textarea id="fallback-editor" style="width:100%;height:100%;font-family:monospace;padding:10px;"></textarea>
+                    `;
+                    resolve();
                 }
             });
             
             window.require.onError = function(err) {
                 console.error('加载Monaco编辑器失败:', err);
-                reject(err);
+                // 回退到textarea
+                document.getElementById('editor').innerHTML = `
+                    <textarea id="fallback-editor" style="width:100%;height:100%;font-family:monospace;padding:10px;"></textarea>
+                `;
+                resolve();
             };
         };
         
         script.onerror = (err) => {
             console.error('加载Monaco脚本失败:', err);
-            reject(err);
+            // 回退到textarea
+            document.getElementById('editor').innerHTML = `
+                <textarea id="fallback-editor" style="width:100%;height:100%;font-family:monospace;padding:10px;"></textarea>
+            `;
+            resolve();
         };
         
         document.head.appendChild(script);
@@ -763,26 +796,39 @@ function handleMobileKeyboard() {
         editorElement.style.height = '';
     }
     
-    editor.layout();
+    if (editor.layout) {
+        editor.layout();
+    }
 }
 
 function setEditorContent(content, fileExt) {
-    editor.setValue(content);
-    
-    const language = languageMapping[fileExt] || 'text';
-    monaco.editor.setModelLanguage(editor.getModel(), language);
+    if (editor && editor.setValue) {
+        editor.setValue(content);
+        
+        const language = languageMapping[fileExt] || 'text';
+        monaco.editor.setModelLanguage(editor.getModel(), language);
+    } else if (document.getElementById('fallback-editor')) {
+        // 回退到textarea
+        document.getElementById('fallback-editor').value = content;
+    }
     
     editorFilename.textContent = currentEditingFile.name;
     editorFileSize.textContent = formatFileSize(currentEditingFile.size);
-    editorLanguage.textContent = language.toUpperCase();
+    editorLanguage.textContent = (languageMapping[fileExt] || 'text').toUpperCase();
     
     document.getElementById('editor-container').style.display = 'flex';
     document.getElementById('editor-container').classList.remove("hidden");
     
-    setTimeout(() => editor.focus(), 100);
+    setTimeout(() => {
+        if (editor && editor.focus) {
+            editor.focus();
+        } else if (document.getElementById('fallback-editor')) {
+            document.getElementById('fallback-editor').focus();
+        }
+    }, 100);
 }
 
-// 修改后的文件打开函数
+// 修改后的文件打开函数 - 使用正确的方式获取内容和SHA
 async function openFileInEditor(fileInfo) {
     if (fileInfo.size > 1024 * 1024) {
         showToast('文件过大，请在浏览器中查看');
@@ -797,13 +843,16 @@ async function openFileInEditor(fileInfo) {
     
     try {
         showToast('正在加载文件内容...');
-        currentEditingFile = fileInfo;
         
-        // 使用API获取文件内容（包含SHA）
-        const [fileContent, sha] = await fetchFileContentWithSHA();
+        // 创建新的编辑文件对象，避免污染原始数据
+        currentEditingFile = {
+            ...fileInfo,
+            path: currentPath ? `${currentPath}/${fileInfo.name}` : fileInfo.name
+        };
         
-        // 保存SHA值用于后续保存
-        currentEditingFile.sha = sha;
+        // 获取文件内容和SHA
+        const [fileContent, sha] = await fetchFileContentWithCorrectSHA(currentEditingFile);
+        currentEditingFile.sha = sha;  // 确保存储SHA值
         
         // 初始化编辑器并设置内容
         await initEditor();
@@ -811,77 +860,221 @@ async function openFileInEditor(fileInfo) {
     } catch (error) {
         console.error('打开编辑器失败:', error);
         showToast('加载文件失败: ' + error.message);
+        currentEditingFile = null;  // 重置编辑状态
     }
 }
 
-// 新增函数：通过API获取文件内容和SHA
-async function fetchFileContentWithSHA() {
-    const apiUrl = `https://api.github.com/repos/${currentRepo}/contents/${
-        currentPath ? encodeURIComponent(currentPath) + '/' : ''
-    }${encodeURIComponent(currentEditingFile.name)}`;
+
+async function fetchFileContent(fileInfo) {
+  try {
+    // 尝试直接下载方式获取内容（优先）
+    const directResponse = await fetch(fileInfo.download_url);
+    if (directResponse.ok) {
+      return [await directResponse.text(), null];
+    }
+  } catch (e) {
+    console.log('直接下载方式失败，尝试Contents API方式');
+  }
+
+  // 使用Contents API作为备用方案
+  const apiUrl = `https://api.github.com/repos/${currentRepo}/contents/${
+    currentPath ? encodeURIComponent(currentPath) + '/' : ''
+  }${encodeURIComponent(fileInfo.name)}`;
+  
+  const response = await fetch(apiUrl, {
+    headers: {
+      'Authorization': `token ${githubToken}`,
+      'Accept': 'application/vnd.github.v3+json'
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error('获取文件内容失败: ' + response.status);
+  }
+  
+  const responseData = await response.json();
+  const sha = responseData.sha;
+  const base64Content = responseData.content;
+  
+  // 改进的base64解码方法
+  const decodedContent = decodeBase64(base64Content);
+  
+  return [decodedContent, sha];
+}
+
+// 改进的base64解码函数
+function decodeBase64(base64) {
+  // 清理base64字符串（移除换行等非base64字符）
+  const cleanBase64 = base64.replace(/\s/g, '');
+  
+  try {
+    // 现代浏览器方法
+    const binaryString = atob(cleanBase64);
+    const bytes = new Uint8Array(binaryString.length);
+    
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    // 尝试UTF-8解码
+    try {
+      return new TextDecoder('utf-8').decode(bytes);
+    } catch (e) {
+      // 如果UTF-8失败，尝试其他编码
+      return fallbackDecode(bytes);
+    }
+  } catch (e) {
+    throw new Error('Base64解码失败');
+  }
+}
+
+// 备用的解码方法
+function fallbackDecode(bytes) {
+  // 尝试常见的编码
+  const encodings = ['utf-8', 'gbk', 'gb2312', 'big5', 'iso-8859-1'];
+  
+  for (const encoding of encodings) {
+    try {
+      // 浏览器内置的TextDecoder
+      const decoder = new TextDecoder(encoding, { fatal: true });
+      return decoder.decode(bytes);
+    } catch (e) {
+      // 继续尝试下一个编码
+    }
+  }
+  
+  // 全部失败时使用传统方法
+  try {
+    return String.fromCharCode.apply(null, bytes);
+  } catch (e) {
+    // 最终回退：base64原始解码
+    return atob(cleanBase64);
+  }
+}
+
+
+// 新增函数：通过正确的GitHub Contents API获取文件内容和SHA
+async function fetchFileContentWithCorrectSHA(fileInfo) {
+    const apiUrl = `https://api.github.com/repos/${currentRepo}/contents/${currentPath ? encodeURIComponent(currentPath) + '/' : ''}${encodeURIComponent(fileInfo.name)}`;
     
     const response = await fetch(apiUrl, {
         headers: {
             'Authorization': `token ${githubToken}`,
-            'Accept': 'application/vnd.github.v3.raw'
+            'Accept': 'application/vnd.github.v3+json'
         }
     });
     
     if (!response.ok) {
-        throw new Error('获取文件内容失败: ' + response.status);
+        throw new Error('获取文件内容失败: ' + response.status + ' - ' + response.statusText);
     }
     
-    // 获取SHA值（从响应头中）
-    const sha = response.headers.get('ETag') || '';
+    // 正确解析JSON响应体来获取SHA和内容
+    const responseData = await response.json();
     
-    // 获取文件内容
-    const content = await response.text();
+    // 从响应数据中获取SHA（这是正确的获取方式）
+    const sha = responseData.sha;
+    if (!sha) {
+        throw new Error('无法获取文件SHA值');
+    }
     
-    return [content, sha];
+    // GitHub API返回的内容是base64编码的
+    const base64Content = responseData.content;
+    if (!base64Content) {
+        throw new Error('文件内容为空');
+    }
+    
+    // 使用新的函数正确解码base64内容
+    const decodedContent = decodeBase64Utf8(base64Content);
+    
+    return [decodedContent, sha];
 }
 
+
+// 优化后的保存函数
 async function saveFileChanges() {
-    if (!editor || !currentEditingFile) return;
+    if (!currentEditingFile) {
+        showToast('没有可保存的文件');
+        return;
+    }
     
     try {
-        const newContent = editor.getValue();
-        
-        // 使用保存的SHA值
-        const sha = currentEditingFile.sha;
-        if (!sha) {
-            throw new Error('缺少文件SHA值，无法保存');
+        let newContent;
+        if (editor && editor.getValue) {
+            newContent = editor.getValue();
+        } else if (document.getElementById('fallback-editor')) {
+            newContent = document.getElementById('fallback-editor').value;
+        } else {
+            throw new Error('编辑器未初始化');
         }
         
+        // 确保有有效的SHA值 - 如果缺失则重新获取
+        if (!currentEditingFile.sha) {
+            showToast('正在获取文件最新版本...');
+            const [_, newSha] = await fetchFileContentWithCorrectSHA(currentEditingFile);
+            currentEditingFile.sha = newSha;
+        }
+        
+        const sha = currentEditingFile.sha;
+        
+        // 正确编码内容为base64
+        const base64Content = btoa(unescape(encodeURIComponent(newContent)));
+        
         const updateResponse = await fetch(
-            `https://api.github.com/repos/${currentRepo}/contents/${currentPath ? currentPath + '/' : ''}${currentEditingFile.name}`,
+            `https://api.github.com/repos/${currentRepo}/contents/${currentEditingFile.path}`,
             {
                 method: 'PUT',
                 headers: {
                     'Authorization': `token ${githubToken}`,
-                    'Accept': 'application/vnd.github.v3+json'
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     message: `更新 ${currentEditingFile.name}`,
-                    content: btoa(unescape(encodeURIComponent(newContent))),
-                    sha: sha
+                    content: base64Content,
+                    sha: sha // 使用正确的SHA值
                 })
             }
         );
         
         if (!updateResponse.ok) {
             const errorData = await updateResponse.json();
-            throw new Error(errorData.message || '保存文件失败');
+            
+            // 处理SHA过期的情况
+            if (errorData.message && errorData.message.includes('sha')) {
+                showToast('文件已被修改，正在获取最新版本...');
+                
+                // 重新获取最新SHA并重试
+                const [_, newSha] = await fetchFileContentWithCorrectSHA(currentEditingFile);
+                currentEditingFile.sha = newSha;
+                
+                // 重新发送保存请求
+                return saveFileChanges();
+            }
+            
+            // 其他错误处理
+            let errorMessage = '保存文件失败';
+            if (errorData.message) {
+                errorMessage = errorData.message;
+            }
+            throw new Error(errorMessage);
         }
         
         showToast('文件保存成功');
         closeEditor();
+        // 重新加载文件以获取最新状态
         loadRepositoryContents(currentRepo, currentPath);
         
     } catch (error) {
         console.error('保存文件失败:', error);
         showToast('保存失败: ' + error.message);
+        
+        // 特定错误处理
+        if (error.message.includes('太大')) {
+            showToast('文件超过100MB限制，请使用Git客户端');
+        }
     }
 }
+
 
 function closeEditor() {
     document.getElementById('editor-container').style.display = 'none';
@@ -1567,191 +1760,42 @@ function renderFileList(items) {
             showContextMenu(e, item);
         });
         
-// 修复文件点击行为
-fileItem.addEventListener('click', (e) => {
-    // 阻止默认行为（防止链接跳转）
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (batchToolbar.classList.contains('visible')) {
-        toggleFileSelection(fileItem, item);
-        return;
-    }
-    
-    if (item.type === 'dir') {
-        loadRepositoryContents(currentRepo, `${currentPath ? currentPath + '/' : ''}${item.name}`);
-    } else if (item.type === 'repo') {
-        loadRepositoryContents(item.path);
-    } else if (item.type === 'file') {
-        const fileExt = item.name.split('.').pop().toLowerCase();
-        
-        // 文本文件 - 在编辑器中打开
-        if (textFileExtensions.includes(fileExt)) {
-            openFileInEditor(item);
-        } 
-        // 图片文件 - 直接预览
-        else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(fileExt)) {
-            showImagePreview(item);
-        }
-        // PDF文件 - 在新窗口打开
-        else if (fileExt === 'pdf') {
-            window.open(item.download_url, '_blank');
-        }
-        // 其他文件 - 直接下载
-        else {
-            downloadFile(item);
-        }
-    }
-});
-
-// 修改后的图片预览函数 - 使用API获取图片
-function showImagePreview(item) {
-    // 创建预览容器
-    const previewContainer = document.createElement('div');
-    previewContainer.className = 'image-preview-container';
-    previewContainer.innerHTML = `
-        <div class="image-preview-content">
-            <div class="image-preview-header">
-                <div class="image-preview-title">${item.name}</div>
-                <button class="image-preview-close" title="关闭">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="image-preview-body">
-                <div class="loading-indicator">
-                    <i class="fas fa-spinner fa-spin"></i> 加载中...
-                </div>
-            </div>
-            <div class="image-preview-footer">
-                <div class="background-toggle">
-                    <button class="btn-bg-light" title="浅色背景">
-                        <i class="fas fa-sun"></i>
-                    </button>
-                    <button class="btn-bg-dark" title="深色网格背景">
-                        <i class="fas fa-moon"></i>
-                    </button>
-                    <button class="btn-bg-grid" title="浅色网格背景">
-                        <i class="fas fa-border-all"></i>
-                    </button>
-                </div>
+        // 修复文件点击行为
+        fileItem.addEventListener('click', (e) => {
+            // 阻止默认行为（防止链接跳转）
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (batchToolbar.classList.contains('visible')) {
+                toggleFileSelection(fileItem, item);
+                return;
+            }
+            
+            if (item.type === 'dir') {
+                loadRepositoryContents(currentRepo, `${currentPath ? currentPath + '/' : ''}${item.name}`);
+            } else if (item.type === 'repo') {
+                loadRepositoryContents(item.path);
+            } else if (item.type === 'file') {
+                const fileExt = item.name.split('.').pop().toLowerCase();
                 
-            </div>
-        </div>
-    `;
-    
-    // 添加到页面
-    document.body.appendChild(previewContainer);
-    document.body.style.overflow = 'hidden';
-    
-    // 获取图片容器元素
-    const imgBody = previewContainer.querySelector('.image-preview-body');
-    
-    // 使用API获取图片内容
-    fetchImageContent(item).then(blobUrl => {
-    // 移除加载指示器
-    imgBody.innerHTML = '';
-    
-    // 创建图片元素
-    const img = document.createElement('img');
-    img.src = blobUrl;
-    img.alt = item.name;
-    img.loading = 'lazy';
-    imgBody.appendChild(img);
-    
-    // 根据图片类型设置初始背景
-    const ext = item.name.split('.').pop().toLowerCase();
-    const isTransparent = ['png', 'gif', 'svg', 'webp'].includes(ext);
-    
-    if (isTransparent) {
-        imgBody.classList.add('checkerboard-dark-bg'); // 默认使用深色网格背景
-    }
-    
-    // 背景切换功能
-    previewContainer.querySelector('.btn-bg-light').addEventListener('click', () => {
-        imgBody.className = 'image-preview-body light-bg';
-    });
-    
-    previewContainer.querySelector('.btn-bg-dark').addEventListener('click', () => {
-        imgBody.className = 'image-preview-body checkerboard-dark-bg';
-    });
-    
-    previewContainer.querySelector('.btn-bg-grid').addEventListener('click', () => {
-        imgBody.className = 'image-preview-body checkerboard-bg';
-    });
-    
-    // 图片加载错误处理
-    img.onerror = () => {
-        imgBody.innerHTML = '<div class="text-red-500">图片加载失败</div>';
-        // 释放 blob URL
-        URL.revokeObjectURL(blobUrl);
-    };
-    
-    // 图片加载成功后释放内存
-    img.onload = () => {
-        // 稍后释放Blob URL
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-    };
-}).catch(error => {
-    console.error('获取图片失败:', error);
-    imgBody.innerHTML = '<div class="text-red-500">图片加载失败: ' + error.message + '</div>';
-});
-    
-    // 关闭预览的函数
-    const closePreview = () => {
-        document.body.removeChild(previewContainer);
-        document.body.style.overflow = '';
-    };
-    
-    // 添加关闭事件
-    previewContainer.querySelector('.image-preview-close').addEventListener('click', closePreview);
-    
-    // ESC键关闭
-    document.addEventListener('keydown', function escClose(e) {
-        if (e.key === 'Escape') {
-            closePreview();
-            document.removeEventListener('keydown', escClose);
-        }
-    });
-}
-
-// 使用API获取图片内容
-async function fetchImageContent(fileInfo) {
-    const apiUrl = `https://api.github.com/repos/${currentRepo}/contents/${
-        currentPath ? encodeURIComponent(currentPath) + '/' : ''
-    }${encodeURIComponent(fileInfo.name)}`;
-    
-    const response = await fetch(apiUrl, {
-        headers: {
-            'Authorization': `token ${githubToken}`,
-            'Accept': 'application/vnd.github.v3.raw'
-        }
-    });
-    
-    if (!response.ok) {
-        throw new Error('获取图片内容失败: ' + response.status);
-    }
-    
-    const blob = await response.blob();
-    
-    // 检查文件扩展名，如果是svg，则修正MIME类型
-    const ext = fileInfo.name.split('.').pop().toLowerCase();
-    if (ext === 'svg') {
-        // 创建一个新的Blob，指定正确的类型
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-                // 将读取的内容转换为字符串，然后创建正确类型的Blob
-                const svgString = reader.result;
-                const correctedBlob = new Blob([svgString], { type: 'image/svg+xml' });
-                resolve(URL.createObjectURL(correctedBlob));
-            };
-            reader.readAsText(blob);
+                // 文本文件 - 在编辑器中打开
+                if (textFileExtensions.includes(fileExt)) {
+                    openFileInEditor(item);
+                } 
+                // 图片文件 - 直接预览
+                else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(fileExt)) {
+                    showImagePreview(item);
+                }
+                // PDF文件 - 在新窗口打开
+                else if (fileExt === 'pdf') {
+                    window.open(item.download_url, '_blank');
+                }
+                // 其他文件 - 直接下载
+                else {
+                    downloadFile(item);
+                }
+            }
         });
-    }
-    
-    return URL.createObjectURL(blob);
-}
-
         
         const icon = document.createElement('i');
         icon.className = `file-icon ${item.type === 'dir' ? 'fas fa-folder folder-icon' : 
@@ -1812,6 +1856,154 @@ async function fetchImageContent(fileInfo) {
         fileItem.appendChild(infoContainer);                               
         fileListElement.appendChild(fileItem);
     });
+}
+
+// 显示图片预览
+function showImagePreview(item) {
+    // 创建预览容器
+    const previewContainer = document.createElement('div');
+    previewContainer.className = 'image-preview-container';
+    previewContainer.innerHTML = `
+        <div class="image-preview-content">
+            <div class="image-preview-header">
+                <div class="image-preview-title">${item.name}</div>
+                <button class="image-preview-close" title="关闭">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="image-preview-body">
+                <div class="loading-indicator">
+                    <i class="fas fa-spinner fa-spin"></i> 加载中...
+                </div>
+            </div>
+            <div class="image-preview-footer">
+                <div class="background-toggle">
+                    <button class="btn-bg-light" title="浅色背景">
+                        <i class="fas fa-sun"></i>
+                    </button>
+                    <button class="btn-bg-dark" title="深色网格背景">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <button class="btn-bg-grid" title="浅色网格背景">
+                        <i class="fas fa-border-all"></i>
+                    </button>
+                </div>
+                
+            </div>
+        </div>
+    `;
+    
+    // 添加到页面
+    document.body.appendChild(previewContainer);
+    document.body.style.overflow = 'hidden';
+    
+    // 获取图片容器元素
+    const imgBody = previewContainer.querySelector('.image-preview-body');
+    
+    // 使用API获取图片内容
+    fetchImageContent(item).then(blobUrl => {
+        // 移除加载指示器
+        imgBody.innerHTML = '';
+        
+        // 创建图片元素
+        const img = document.createElement('img');
+        img.src = blobUrl;
+        img.alt = item.name;
+        img.loading = 'lazy';
+        imgBody.appendChild(img);
+        
+        // 根据图片类型设置初始背景
+        const ext = item.name.split('.').pop().toLowerCase();
+        const isTransparent = ['png', 'gif', 'svg', 'webp'].includes(ext);
+        
+        if (isTransparent) {
+            imgBody.classList.add('checkerboard-dark-bg'); // 默认使用深色网格背景
+        }
+        
+        // 背景切换功能
+        previewContainer.querySelector('.btn-bg-light').addEventListener('click', () => {
+            imgBody.className = 'image-preview-body light-bg';
+        });
+        
+        previewContainer.querySelector('.btn-bg-dark').addEventListener('click', () => {
+            imgBody.className = 'image-preview-body checkerboard-dark-bg';
+        });
+        
+        previewContainer.querySelector('.btn-bg-grid').addEventListener('click', () => {
+            imgBody.className = 'image-preview-body checkerboard-bg';
+        });
+        
+        // 图片加载错误处理
+        img.onerror = () => {
+            imgBody.innerHTML = '<div class="text-red-500">图片加载失败</div>';
+            // 释放 blob URL
+            URL.revokeObjectURL(blobUrl);
+        };
+        
+        // 图片加载成功后释放内存
+        img.onload = () => {
+            // 稍后释放Blob URL
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        };
+    }).catch(error => {
+        console.error('获取图片失败:', error);
+        imgBody.innerHTML = '<div class="text-red-500">图片加载失败: ' + error.message + '</div>';
+    });
+    
+    // 关闭预览的函数
+    const closePreview = () => {
+        document.body.removeChild(previewContainer);
+        document.body.style.overflow = '';
+    };
+    
+    // 添加关闭事件
+    previewContainer.querySelector('.image-preview-close').addEventListener('click', closePreview);
+    
+    // ESC键关闭
+    document.addEventListener('keydown', function escClose(e) {
+        if (e.key === 'Escape') {
+            closePreview();
+            document.removeEventListener('keydown', escClose);
+        }
+    });
+}
+
+// 使用API获取图片内容
+async function fetchImageContent(fileInfo) {
+    const apiUrl = `https://api.github.com/repos/${currentRepo}/contents/${
+        currentPath ? encodeURIComponent(currentPath) + '/' : ''
+    }${encodeURIComponent(fileInfo.name)}`;
+    
+    const response = await fetch(apiUrl, {
+        headers: {
+            'Authorization': `token ${githubToken}`,
+            'Accept': 'application/vnd.github.v3.raw'
+        }
+    });
+    
+    if (!response.ok) {
+        throw new Error('获取图片内容失败: ' + response.status);
+    }
+    
+    const blob = await response.blob();
+    
+    // 检查文件扩展名，如果是svg，则修正MIME类型
+    const ext = fileInfo.name.split('.').pop().toLowerCase();
+    if (ext === 'svg') {
+        // 创建一个新的Blob，指定正确的类型
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                // 将读取的内容转换为字符串，然后创建正确类型的Blob
+                const svgString = reader.result;
+                const correctedBlob = new Blob([svgString], { type: 'image/svg+xml' });
+                resolve(URL.createObjectURL(correctedBlob));
+            };
+            reader.readAsText(blob);
+        });
+    }
+    
+    return URL.createObjectURL(blob);
 }
 
 // 切换文件选择状态
@@ -1963,7 +2155,7 @@ async function downloadFile(file) {
     }
 }
 
-        // 源码下载功能
+// 源码下载功能
 async function downloadRepositorySource(repoInfo) {
     try {
         showToast(`正在准备下载 ${repoInfo.name} 仓库...`);
@@ -2639,8 +2831,8 @@ async function getFileShaIfExists(filePath) {
 function encodeGitHubPath(path) {
     return path.split('/').map(encodeURIComponent).join('/');
 }
-
-// 辅助函数：将文件读取为Base64
+    
+    // 辅助函数：将文件读取为Base64
         function readFileAsBase64(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -2678,7 +2870,7 @@ function encodeGitHubPath(path) {
                 return null;
             }
         }
-        
+    
 // 显示加载状态
 function showLoading() {
     fileListElement.classList.add('hidden');
