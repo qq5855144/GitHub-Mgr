@@ -705,10 +705,14 @@ function initEditor() {
         
         const script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.min.js';
+        script.crossOrigin = "anonymous"; // 添加跨域属性解决Edge加载问题
         script.onload = () => {
             window.require.config({
                 paths: { 
                     'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs'
+                },
+                'vs/nls': {
+                    availableLanguages: { '*': 'zh-cn' } // 强制使用中文界面
                 }
             });
             
